@@ -6,10 +6,10 @@ const dx = [1, 0, -1, 0];
 const dy = [0, 1, 0, -1];
 
 function setup(){
-	createCanvas(320, 480);
+	createCanvas(640, 480);
 	noStroke();
-	myMaze = new maze(16, 24, 20);
-	myMaze.createMaze(14, 22); // とりあえず(3, 3)を始点にしてみる。
+	myMaze = new maze(20, 15, 32);
+	myMaze.createMaze(3, 3); // とりあえず(3, 3)を始点にしてみる。
 }
 
 function draw(){
@@ -33,12 +33,10 @@ class maze{
 		this.start = {x:x, y:y} // スタート地点に設定
 		this.createPath(x, y, 0); // この時点では-1が残っている可能性がある
 		// -1のマスをすべて取得する関数を作ろう。
-		// 毎度毎度-1のマスをすべて取得するのはしんどいから
-		// 最初に一回だけまとめて取得、あとは毎回確定マスを排除しよう。
-		let rest = this.getRestCells();
-		if(rest.length === 0){ return; } // restが空ならやることはない
-		for(let i = 0; i < 5; i++){
-			if(rest.length === 0){ break; } // 周回でrestが空になればそこでおわり
+		// よくわかんないけど横着したら失敗したのでこれで行きます（毎ターンrestを取得する方向で）。
+		for(let i = 0; i < this.w * this.h; i++){
+			let rest = this.getRestCells();
+			if(rest.length === 0){ break; } // restをなくすのが目的。
 		  // 詳細は下記
 			let searched = false; // サーチしたかどうか。最後にここを見て、サーチできなかったなら全部1にして終了。
 			for(let m = 0; m < rest.length; m++){
@@ -50,18 +48,9 @@ class maze{
 					break; // 1つでも切り崩せればbreakしちゃえ
 				}
 			}
-			// 該当マスが1つでもあった場合は確定マスが増えるので、そこをrestからすべて排除する。
-			if(searched){
-				for(let m = 0; m < rest; m++){
-					if(this.board[rest[m].x][rest[m].y] !== -1){
-						rest.splice(m, 1);
-					}
-				}
-				continue;
-			}
-			// 該当マスがなかった場合はrestのマスをすべて1確定にして終了
+			if(searched){ continue; } // 次のループへ
 			rest.forEach((r) => {
-				this.board[r.x][r.y] = 1;
+				this.board[r.x][r.y] = 1; // すべて1にして終了。
 			})
 			break;
 		}
@@ -70,6 +59,9 @@ class maze{
 			let new_v = this.cellValue[z % this.w][Math.floor(z / this.w)];
 			if(v < new_v){ v = new_v; this.goal.x = z % this.w; this.goal.y = Math.floor(z / this.w); }
 		}
+		console.log("start:(" + this.start.x + ", " + this.start.y + ")");
+		console.log("goal:(" + this.goal.x + ", " + this.goal.y + ")");
+		console.log("mazeValue:" + this.cellValue[this.goal.x][this.goal.y]);
 	}
 	getRestCells(){
 		// 残った未確定マスをすべて取得する
@@ -89,8 +81,8 @@ class maze{
 		let stuck = [{x:x, y:y}];
 		this.cellValue[x][y] = v; // 起点をvにする。最初の一手ではここを0にする。
 		this.board[x][y] = 0;
-		for(let i = 0; i < 220; i++){
-			if(stuck.length === 0){ break; }
+		for(let i = 0; i < this.w * this.h; i++){
+			if(stuck.length === 0){ console.log("探索回数" + i + "回"); break; }
 			current = stuck.pop(); // 先頭を出す
 			this.charge(stuck, current);
 		}
