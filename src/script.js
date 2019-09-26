@@ -2,6 +2,7 @@
 // isZero > 1を=== 2にしたせいでバグってしまったらしい。はぁ・・
 
 let myMaze;
+let myPlayer;
 const dx = [1, 0, -1, 0];
 const dy = [0, 1, 0, -1];
 
@@ -10,11 +11,14 @@ function setup(){
 	noStroke();
 	myMaze = new maze(20, 15, 32);
 	myMaze.createMaze(3, 3); // とりあえず(3, 3)を始点にしてみる。
+	myPlayer = new player(3, 3, myMaze);
 }
 
 function draw(){
 	background(220);
+	myPlayer.update();
 	myMaze.render();
+	myPlayer.render();
 }
 
 class maze{
@@ -197,4 +201,82 @@ function getInitialMatrix(w, h, v){
 		array.push(column);
 	}
 	return array;
+}
+
+class player{
+	constructor(x, y, mapData){
+		this.from = {x:x, y:y};
+		this.to = {x:x, y:y};
+		this.dir = 0;
+		this.diff = 0;
+		this.myMap = mapData;
+		this.speed = 0.05;
+	}
+	update(){
+		let keyId = this.getId();
+		if(keyId < 0){ return; }
+		//console.log(this.from);
+		//console.log(this.to);
+		//console.log(this.diff);
+		if(this.diff === 0 && this.from.x === this.to.x && this.from.y === this.to.y){ this.setting(keyId); }
+		// settingしてもtoが変わらない＝その方向には行けない（dirは変化している）
+		if(this.from.x === this.to.x && this.from.y === this.to.y){ return; } // 行けない
+		// diff補正パート
+		if(keyId === this.dir){ this.diff += this.speed; }
+		else if(keyId === (this.dir + 2) % 4){
+			this.turn();
+			this.diff += this.speed;
+		}else{
+			if(this.diff <= 0.2 && this.getFromAround(keyId) === 0){
+				this.turn();
+				this.diff += this.speed;
+			}else if(this.diff >= 0.8 && this.getToAround(keyId) === 0){
+				this.diff += this.speed;
+			}else{ return; } // これ以外のケースでは滑りが発生しない
+		}
+		// diff修正パート
+		if(this.diff < 1){ return; } // 1より小：何も起こらない
+		this.diff = 0;
+		this.dir = keyId;
+		this.from = {x:this.to.x, y:this.to.y};
+	}
+	getFromAround(id){
+		// fromの周囲を調べる
+		return this.myMap.board[this.from.x + dx[id]][this.from.y + dy[id]];
+	}
+	getToAround(id){
+		// toの周囲を調べる
+		return this.myMap.board[this.to.x + dx[id]][this.to.y + dy[id]];
+	}
+	turn(){
+		// 反転
+		this.dir = (this.dir + 2) % 4;
+		this.diff = 1 - this.diff;
+		let tmp = {a:this.from.x, b:this.from.y};
+		this.from = {x:this.to.x, y:this.to.y};
+		this.to = {x:tmp.a, y:tmp.b};
+	}
+	setting(id){
+		let flag = this.getFromAround(id);
+		//console.log(flag);
+		if(flag === 0){
+			// キー入力方向に進める場合はそっちにtoを設定する
+			this.to = {x:this.from.x + dx[id], y:this.from.y + dy[id]};
+			this.dir = id;
+		}
+	}
+	getId(){
+		if(keyIsDown(RIGHT_ARROW)){ return 0; }
+		if(keyIsDown(DOWN_ARROW)){ return 1; }
+		if(keyIsDown(LEFT_ARROW)){ return 2; }
+		if(keyIsDown(UP_ARROW)){ return 3; }
+		return -1;
+	}
+	render(){
+		let g = this.myMap.grid;
+		let cellX = map(this.diff, 0, 1, this.from.x, this.to.x);
+		let cellY = map(this.diff, 0, 1, this.from.y, this.to.y);
+		fill(255, 201, 14);
+		rect(cellX * g, cellY * g, g, g);
+	}
 }
