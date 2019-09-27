@@ -7,7 +7,8 @@
 // あと、playerの基底クラスを作って敵の動きやオブジェクト（攻撃）とかそういうのの動きに使いたい。んー・・
 
 let myMap;
-let myMover;
+let myPlayer;
+let myWanderer;
 const dx = [1, 0, -1, 0, 1];
 const dy = [0, 1, 0, -1, 0];
 
@@ -17,14 +18,17 @@ function setup(){
 	myMap = new stageMap(20, 15, 32);
 	myMap.createMaze(3, 3); // とりあえず(3, 3)を始点にしてみる。
   myMap.completion();
-  myMover = new mover(3, 3, 0.08, myMap);
+  myPlayer = new player(3, 3, 0.08, myMap);
+  myWanderer = new wanderer(3, 3, 0.04, myMap, 110, 0, 255);
 }
 
 function draw(){
 	background(220);
-  myMover.move();
+  myPlayer.move();
+  myWanderer.move();
 	myMap.render();
-  myMover.render();
+  myPlayer.render();
+  myWanderer.render();
 }
 
 class stageMap{
@@ -154,9 +158,61 @@ class mover{
 		this.speed = speed;
 	}
   update(){
-    // なにもしない
+    // なんか更新
   }
 	move(){
+    // updateだと他にもやることあるのにぃってなるからmoveにした。いろんな挙動。
+	}
+	getFromAround(id){
+		// fromのid方向にあるマスのボード値を返す
+		return this.myMap.board[this.from.x + dx[id]][this.from.y + dy[id]];
+	}
+	getToAround(id){
+		// toのid方向にあるマスのボード値を返す
+		return this.myMap.board[this.to.x + dx[id]][this.to.y + dy[id]];
+	}
+	turn(){
+		// 反転
+		this.dir = (this.dir + 2) % 4;
+		this.diff = 1 - this.diff;
+		let tmp = {a:this.from.x, b:this.from.y};
+		this.from = {x:this.to.x, y:this.to.y};
+		this.to = {x:tmp.a, y:tmp.b};
+	}
+	setting(id){
+    // diffが0の場合に入力を受け取ったとして次にどこに行くのか、どこにも行かないのかを判断し実行するパート。
+    // たとえば敵の場合はdirの情報を元にして方向転換とかするんだろうなと。
+    // 敵の場合getIdでdirを取得してるから、実質自分のdirを元にいろいろ決める事になりそう。
+    // これはデフォでいいや・・
+		let flag = this.getFromAround(id);
+		if(flag === 1){ // 1で動けるフラグ
+			// キー入力方向に進める場合はそっちにtoを設定する
+			this.to = {x:this.from.x + dx[id], y:this.from.y + dy[id]};
+			this.dir = id;
+		}
+    // 0の場合は何も起こらない・・敵の動きとかの場合、dir情報を元にここでいろいろ設定する感じかな。
+	}
+	getId(){
+    // moveに必要な方向指示を取得する。プレイヤーならキー入力で受け取る。
+    // 敵の場合とか、getIdはそのままdirでしょ・・場合によっては違うかもだけど。
+    return -1;
+	}
+	render(){
+		let g = this.myMap.grid;
+		let cellX = map(this.diff, 0, 1, this.from.x, this.to.x);
+		let cellY = map(this.diff, 0, 1, this.from.y, this.to.y);
+		fill(255, 201, 14);
+		rect(cellX * g, cellY * g, g, g);
+	}
+}
+
+// プレイヤー。キー入力で移動します。
+class player extends mover{
+  constructor(x, y, speed, mapData){
+    super(x, y, speed, mapData);
+    // なにもありません（？）
+  }
+  move(){
     // updateだと他にもやることあるのにぃってなるからmoveにした
 		let keyId = this.getId();
 		if(keyId < 0){ return; }
@@ -186,58 +242,6 @@ class mover{
 		this.dir = keyId;
 		this.from = {x:this.to.x, y:this.to.y};
 	}
-	getFromAround(id){
-		// fromのid方向にあるマスのボード値を返す
-		return this.myMap.board[this.from.x + dx[id]][this.from.y + dy[id]];
-	}
-	getToAround(id){
-		// toのid方向にあるマスのボード値を返す
-		return this.myMap.board[this.to.x + dx[id]][this.to.y + dy[id]];
-	}
-	turn(){
-		// 反転
-		this.dir = (this.dir + 2) % 4;
-		this.diff = 1 - this.diff;
-		let tmp = {a:this.from.x, b:this.from.y};
-		this.from = {x:this.to.x, y:this.to.y};
-		this.to = {x:tmp.a, y:tmp.b};
-	}
-	setting(id){
-    // diffが0の場合に入力を受け取ったとして次にどこに行くのか、どこにも行かないのかを判断し実行するパート。
-    // たとえば敵の場合はdirの情報を元にして方向転換とかするんだろうなと。
-    // 敵の場合getIdでdirを取得してるから、実質自分のdirを元にいろいろ決める事になりそう。
-		let flag = this.getFromAround(id);
-		if(flag === 1){ // 1で動けるフラグ
-			// キー入力方向に進める場合はそっちにtoを設定する
-			this.to = {x:this.from.x + dx[id], y:this.from.y + dy[id]};
-			this.dir = id;
-		}
-    // 0の場合は何も起こらない・・敵の動きとかの場合、dir情報を元にここでいろいろ設定する感じかな。
-	}
-	getId(){
-    // moveに必要な方向指示を取得する。プレイヤーならキー入力で受け取る。
-    // 敵の場合とか、getIdはそのままdirでしょ・・場合によっては違うかもだけど。
-    if(keyIsDown(RIGHT_ARROW)){ return 0; }
-		if(keyIsDown(DOWN_ARROW)){ return 1; }
-		if(keyIsDown(LEFT_ARROW)){ return 2; }
-		if(keyIsDown(UP_ARROW)){ return 3; }
-		return -1;
-    return -1;
-	}
-	render(){
-		let g = this.myMap.grid;
-		let cellX = map(this.diff, 0, 1, this.from.x, this.to.x);
-		let cellY = map(this.diff, 0, 1, this.from.y, this.to.y);
-		fill(255, 201, 14);
-		rect(cellX * g, cellY * g, g, g);
-	}
-}
-
-class player extends mover{
-  constructor(x, y, speed, mapData){
-    super(x, y, speed, mapData);
-    // なにもありません（？）
-  }
   getId(){
     // 方向をキー入力で取得
     if(keyIsDown(RIGHT_ARROW)){ return 0; }
@@ -246,10 +250,57 @@ class player extends mover{
 		if(keyIsDown(UP_ARROW)){ return 3; }
 		return -1;
   }
-  setting(id){
-    // プレイヤーの場合、キー入力方向に行けるなら然るべくtoとかdirを設定する。
-  }
 }
+
+// 徘徊し続ける、だけ
+// 近付いたら動き始めるとか、一定の範囲を行ったり来たりするだけとか（円とか矩形で制限する）のも面白そう。
+class wanderer extends mover{
+  constructor(x, y, speed, mapData, r, g, b){
+    super(x, y, speed, mapData);
+    this.color = color(r, g, b);
+  }
+  move(){
+    // updateだと他にもやることあるのにぃってなるからmoveにした
+		let id = this.dir;
+    // diffが0の場合にキー入力が行われると状況に応じてfrom, to, dirが設定される
+		if(this.diff === 0 && this.from.x === this.to.x && this.from.y === this.to.y){ this.setting(id); }
+		// diff補正パート
+	  this.diff += this.speed;
+		// diff修正パート
+		if(this.diff < 1){ return; } // 1より小：何も起こらない
+		this.diff = 0;
+    //console.log("わふー" + this.to.x + ", " + this.to.y);
+    // マスに到達した時のイベントとかここに書くといいかも？(to.x, to.yが該当マスになる)
+    // たとえばゴールに着いたとき「CLEAR!」って表示されて次の階、とかそんなような。
+		this.from = {x:this.to.x, y:this.to.y};
+	}
+  getId(){ return this.dir; }
+  setting(id){
+    // idを元にして、次の行先を決める。getFromAroundのid, id-1, id+1を見てこのうちtrueなのを放り込み、
+    // ランダムでチョイス（要するに引き返さない）。すべてダメのときは行き止まり。引き返す。
+    let choices = [];
+    for(let c = 3; c <= 5; c++){
+      if(this.getFromAround((id + c) % 4) === 1){ choices.push((id + c) % 4); }
+    }
+    let newDir = -1;
+    if(choices.length > 0){
+      newDir = random(choices);
+    }else{
+      // 行き止まりで引き返す感じ
+      newDir = (id + 2) % 4;
+    }
+    this.to = {x:this.from.x + dx[newDir], y:this.from.y + dy[newDir]};
+    this.dir = newDir;
+  }
+  render(){
+		let g = this.myMap.grid;
+		let cellX = map(this.diff, 0, 1, this.from.x, this.to.x);
+		let cellY = map(this.diff, 0, 1, this.from.y, this.to.y);
+		fill(this.color);
+		rect(cellX * g, cellY * g, g, g);
+	}
+}
+// 接触判定の為にも座標は必要かもね。
 
 // 手順
 // 起点(x, y)を定めてここをstartにする。
