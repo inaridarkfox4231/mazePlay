@@ -38,7 +38,7 @@ class maze{
 		this.createPath(x, y, 0); // この時点では-1が残っている可能性がある
 		// -1のマスをすべて取得する関数を作ろう。
 		// よくわかんないけど横着したら失敗したのでこれで行きます（毎ターンrestを取得する方向で）。
-		for(let i = 0; i < this.w * this.h; i++){
+		for(let i = 0; i < this.h * this.w; i++){
 			let rest = this.getRestCells();
 			if(rest.length === 0){ break; } // restをなくすのが目的。
 		  // 詳細は下記
@@ -54,7 +54,8 @@ class maze{
 			}
 			if(searched){ continue; } // 次のループへ
 			rest.forEach((r) => {
-				this.board[r.x][r.y] = 1; // すべて1にして終了。
+				this.setFlag(r.x, r.y, 1);
+				//this.board[r.x][r.y] = 1; // すべて1にして終了。
 			})
 			break;
 		}
@@ -84,7 +85,8 @@ class maze{
 		let current;
 		let stuck = [{x:x, y:y}];
 		this.cellValue[x][y] = v; // 起点をvにする。最初の一手ではここを0にする。
-		this.board[x][y] = 0;
+		this.setFlag(x, y, 0);
+		//this.board[x][y] = 0;
 		for(let i = 0; i < this.w * this.h; i++){
 			if(stuck.length === 0){ console.log("探索回数" + i + "回"); break; }
 			current = stuck.pop(); // 先頭を出す
@@ -110,7 +112,7 @@ class maze{
 			let flag = seed % 2;
       this.board[choices[k].x][choices[k].y] = flag;
 			if(flag === 0){
-				this.calcCellValue(choices[k]); // CellValueを計算する。
+				this.calcCellValue(choices[k].x, choices[k].y); // CellValueを計算する。
 				array.push(choices[k]);
 			} // 0のものだけチャージする
 			seed >>= 1;
@@ -127,8 +129,9 @@ class maze{
 		for(let k = 0; k < 4; k++){
 			if(this.board[x + dx[k]][y + dy[k]] === 0){ isZero++; }
 		}
-		if(isZero > 1 || this.check_3(x, y)){ // isZero > 1じゃないとだめ。バリデーション追加。
-			this.board[x][y] = 1;
+		if(isZero > 1){ // やっぱisZero > 1だけにする。
+			this.setFlag(x, y, 1);
+			//this.board[x][y] = 1;
 			return false;
 		}
 		return true;
@@ -154,36 +157,29 @@ class maze{
 			}
 			if(isZero !== 1){ continue; } // 0確定が丁度1つでなければ次のマスへ
 			let v = this.cellValue[entrance.a][entrance.b];
-			this.board[p1][q1] = 0; // 1を0に変更
+			//this.board[p1][q1] = 0; // 1を0に変更
+			this.setFlag(p1, q1, 0);
 			this.cellValue[p1][q1] = v + 1; // valueをv+1に設定
-			this.board[x][y] = 0; // 該当マスを0で確定させる
+			this.setFlag(x, y, 0);
+			//this.board[x][y] = 0; // 該当マスを0で確定させる
 			this.cellValue[x][y] = v + 2; // valueをv + 2に設定
 			return true; // 離脱
 		}
 		return false;
 	}
-	check_3(x, y){
-		// マス(x, y)の斜め方向に0確定がありそのマスとこのマスで作る2x2の残りが1確定のときに
-		// trueを返す関数。それによりこのマス(x, y)を1確定にする、これにより斜向かいを無くせる、はず。
-		for(let k = 0; k < 4; k++){
-			let m = (k + 1) % 4;
-			let flag0 = (this.board[x + dx[k]][y + dy[k]] === 1 ? 1 : 0);
-			let flag1 = (this.board[x + dx[m]][y + dy[m]] === 1 ? 1 : 0);
-			let flag2 = (this.board[x + dx[k] + dx[m]][y + dy[k] + dy[m]] === 0 ? 1 : 0);
-			if(flag0 & flag1 & flag2){ return true; }
-		}
-		return false; // おおむねうまくいってる？
+	setFlag(x, y, flag){
+		this.board[x][y] = flag;
 	}
-	calcCellValue(pos){
+	calcCellValue(x, y){
 		// posのマスの上下左右のうち0のマスだけを見てvalueの最大値を取り+1したものを設定する。
 		let v = -1;
 		for(let k = 0; k < 4; k++){
-			let p = pos.x + dx[k];
-			let q = pos.y + dy[k];
+			let p = x + dx[k];
+			let q = y + dy[k];
 			if(this.board[p][q] !== 0){ continue; }
 			if(this.cellValue[p][q] > v){ v = this.cellValue[p][q]; }
 		}
-		this.cellValue[pos.x][pos.y] = v + 1; // だよね・・最大値+1をposに設定するならこうでしょ。
+		this.cellValue[x][y] = v + 1; // だよね・・最大値+1をposに設定するならこうでしょ。
 	}
 	render(){
 		let g = this.grid;
@@ -222,7 +218,7 @@ class player{
 		this.dir = 0;
 		this.diff = 0;
 		this.myMap = mapData;
-		this.speed = 0.05;
+		this.speed = 0.08;
 	}
 	update(){
 		let keyId = this.getId();
@@ -239,10 +235,10 @@ class player{
 			this.turn();
 			this.diff += this.speed;
 		}else{
-			if(this.diff <= 0.2 && this.getFromAround(keyId) === 0){
+			if(this.diff <= 0.25 && this.getFromAround(keyId) === 0){
 				this.turn();
 				this.diff += this.speed;
-			}else if(this.diff >= 0.8 && this.getToAround(keyId) === 0){
+			}else if(this.diff >= 0.75 && this.getToAround(keyId) === 0){
 				this.diff += this.speed;
 			}else{ return; } // これ以外のケースでは滑りが発生しない
 		}
