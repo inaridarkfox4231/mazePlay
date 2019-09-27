@@ -10,8 +10,8 @@ function setup(){
 	createCanvas(640, 480);
 	noStroke();
 	myMaze = new maze(20, 15, 32);
-	myMaze.createMaze(3, 3); // とりあえず(3, 3)を始点にしてみる。
-	myPlayer = new player(3, 3, myMaze);
+	myMaze.createMaze(17, 12); // とりあえず(3, 3)を始点にしてみる。
+	myPlayer = new player(17, 12, myMaze);
 }
 
 function draw(){
@@ -127,7 +127,7 @@ class maze{
 		for(let k = 0; k < 4; k++){
 			if(this.board[x + dx[k]][y + dy[k]] === 0){ isZero++; }
 		}
-		if(isZero > 1){ // isZero > 1じゃないとだめみたいですね・・ごめん。
+		if(isZero > 1 || this.check_3(x, y)){ // isZero > 1じゃないとだめ。バリデーション追加。
 			this.board[x][y] = 1;
 			return false;
 		}
@@ -161,6 +161,18 @@ class maze{
 			return true; // 離脱
 		}
 		return false;
+	}
+	check_3(x, y){
+		// マス(x, y)の斜め方向に0確定がありそのマスとこのマスで作る2x2の残りが1確定のときに
+		// trueを返す関数。それによりこのマス(x, y)を1確定にする、これにより斜向かいを無くせる、はず。
+		for(let k = 0; k < 4; k++){
+			let m = (k + 1) % 4;
+			let flag0 = (this.board[x + dx[k]][y + dy[k]] === 1 ? 1 : 0);
+			let flag1 = (this.board[x + dx[m]][y + dy[m]] === 1 ? 1 : 0);
+			let flag2 = (this.board[x + dx[k] + dx[m]][y + dy[k] + dy[m]] === 0 ? 1 : 0);
+			if(flag0 & flag1 & flag2){ return true; }
+		}
+		return false; // おおむねうまくいってる？
 	}
 	calcCellValue(pos){
 		// posのマスの上下左右のうち0のマスだけを見てvalueの最大値を取り+1したものを設定する。
