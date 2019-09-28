@@ -5,11 +5,12 @@
 
 // あと、フレームごとに（10フレームに1回くらいで）迷路が出来ていくシミュレーションとかやりたい。
 // あと、playerの基底クラスを作って敵の動きやオブジェクト（攻撃）とかそういうのの動きに使いたい。んー・・
+"use strict";
 
 let myMap;
 let myPlayer;
 let myWanderer;
-const dx = [1, 0, -1, 0, 1];
+const dx = [1, 0, -1, 0, 1]; // 4番目を用意しておくのが地味に大事
 const dy = [0, 1, 0, -1, 0];
 
 function setup(){
@@ -37,7 +38,7 @@ class stageMap{
 		this.h = h;
 		this.start = {x:0, y:0}; // 迷路を作るときの始点
 		this.goal = {x:0, y:0};  // cellValueが最大となる点で、ゴールに設定する
-		this.grid = grid
+		this.grid = grid;
 		this.board = getInitialMatrix(w, h, -1);
 		this.cellValue = getInitialMatrix(w, h, -1);
     // 外周を0で埋める
@@ -49,6 +50,9 @@ class stageMap{
     this.grid = grid;
     this.board = getInitialMatrix(w, h, -1);
     this.cellValue = getInitialMatrix(w, h, -1);
+		this.goal = {x:0, y:0};
+		for(let x = 0; x < w; x++){ this.board[x][0] = 0; this.board[x][h - 1] = 0; }
+		for(let y = 0; y < h; y++){ this.board[0][y] = 0; this.board[w - 1][y] = 0; }
   }
 	createMaze(x, y){
     // (x, y)を起点とした迷路を作成する
