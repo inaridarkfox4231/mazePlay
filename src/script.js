@@ -17,14 +17,7 @@ const dy = [0, 1, 0, -1, 0];
 function setup(){
 	createCanvas(640, 480);
 	noStroke();
-	//myMap = new stageMap(20, 15, 32);
-	//myMap.createMaze(3, 3); // とりあえず(3, 3)を始点にしてみる。
-  //myMap.completion();
-	entity = new master(1, 1, 15, 15, 32);
-	entity.setPlayer(1, 1, 0.08);
-	entity.setEnemy();
-  //myPlayer = new player(3, 3, 0.08, myMap);
-  //myWanderer = new wanderer(3, 3, 0.04, myMap, 110, 0, 255);
+	entity = new master(1, 1);
 }
 
 function draw(){
@@ -134,9 +127,9 @@ class stageMap{
 				rect(x * g, y * g, g, g);
 			}
 		}
-		fill(0, 0, 255);
+		fill(114);
 		rect(this.start.x * g, this.start.y * g, g, g);
-		fill(34, 177, 76);
+		fill(215, 186, 53);
 		rect(this.goal.x * g, this.goal.y * g, g, g);
 	}
 }
@@ -156,13 +149,17 @@ function getInitialMatrix(w, h, v){
 
 // ダンジョンをうごめくもの
 class mover{
-	constructor(x, y, speed, mapData){
-		this.from = {x:x, y:y};
+	constructor(speed){
+		this.from = {};
 		this.dir = 0;
 		this.diff = 0;
-		this.myMap = mapData;
+		this.myMap;
 		this.speed = speed;
 		this.alive = true; // 排除用（ショットとか）
+	}
+	setPosData(x, y, mapData){
+		this.from = {x:x, y:y};
+		this.myMap = mapData;
 	}
   update(){
     // なんか更新
@@ -206,8 +203,8 @@ class mover{
 
 // プレイヤー。キー入力で移動します。
 class player extends mover{
-  constructor(x, y, speed, mapData){
-    super(x, y, speed, mapData);
+  constructor(speed){
+    super(speed);
     // hp, pow, etc...
   }
   move(){
@@ -253,8 +250,8 @@ class player extends mover{
 // 徘徊し続ける、だけ
 // 近付いたら動き始めるとか、一定の範囲を行ったり来たりするだけとか（円とか矩形で制限する）のも面白そう。
 class wanderer extends mover{
-  constructor(x, y, speed, mapData, r, g, b){
-    super(x, y, speed, mapData);
+  constructor(speed, r, g, b){
+    super(speed);
     this.color = color(r, g, b);
   }
   move(){
@@ -330,32 +327,47 @@ class stopMessageEffect extends effect{
 // 統括者
 // 敵はプレイヤーの位置と離れたところにしか出したくない。
 class master{
-	constructor(x, y, w, h, g){
-		this.w = w;
-		this.h = h;
-		this.stageNumber = 1;
-		this.stageMap = new stageMap(w, h, g);
+	constructor(x, y){
+		this.stageArray = [new stage(1, 1, 600, [0], [{id:0, ratio:100}], {w:15, h:15, g:32})]
+		this.stage = this.stageArray[0];
+		let param = this.stage.sizeParam;
+		this.w = param.w;
+		this.h = param.h;
+		this.stageMap = new stageMap(this.w, this.h, param.g);
 		this.stageMap.createMaze(x, y);
 		this.stageMap.completion();
 		this.player;
+		this.setPlayer(x, y, 0.08);
 		this.enemyArray = [];
 		this.shotArray = [];
 		this.effectArray = []; // エフェクト。おわったらはじく。
 		this.createStartMessage();
+		this.createEnemyMulti(this.stage.initialEnemyIdArray); // 初期配置
 	}
 	createStartMessage(){
-		this.createStopMessageEffect(60, 80, [{str:"STAGE " + this.stageNumber, size:30, x:50, y:50}])
+		this.createStopMessageEffect(60, 80, [{str:"STAGE " + this.stage.id, size:30, x:50, y:50}])
 	}
 	createStopMessageEffect(life, alpha, messageArray){
 		this.effectArray.push(new stopMessageEffect(life, alpha, messageArray));
 	}
 	setPlayer(x, y, speed){
-		this.player = new player(x, y, speed, this.stageMap);
+		this.player = new player(speed);
+		this.player.setPosData(x, y, this.stageMap);
 	}
-	setEnemy(){
+	createEnemy(id){
 		// とりあえず1匹
-		let pos = this.getEnemyPos(5);
-		this.enemyArray.push(new wanderer(pos.x, pos.y, 0.04, this.stageMap, 100, 100, 255));
+		if(this.stage.full){ return false; } // ステージの存在可能敵数がMAX
+		let pos = this.getEnemyPos(4);
+		if(pos.x < 0){ return false; } // 取得に失敗
+		let enemy = getEnemy(id);
+		enemy.setPosData(pos.x, pos.y, this.stageMap); // 位置情報を登録。
+		this.enemyArray.push(enemy);
+		this.stage.increaseEnemyVolume();
+		return true;
+	}
+	createEnemyMulti(idArray){
+		// 複数版。ただしすべて配置できるとは限らない。
+    idArray.forEach((id) => {this.createEnemy(id);})
 	}
 	getEnemyPos(size){
 		// ランダムにしか選べない。うまく行かなかったら(-1, -1)を返す。
@@ -376,15 +388,14 @@ class master{
 		if(choices.length === 0){ return {x:-1, y:-1}; }
 		return random(choices);
 	}
-	mapReset(x, y, w, h, g){
-		let smp = this.stageMap;
-		smp.reset(w, h, g);
-		smp.createMaze(x, y);
-		smp.completion();
-	}
 	update(){
 		// ...
+		this.stage.update();
 		this.effectArray.forEach((ef) => {ef.update();})
+		if(this.stage.generateSign){
+      this.createEnemy(this.stage.getNextEnemyId()); // 敵を1匹出す
+			this.stage.signOff(); // 作成に失敗したらまたインターバルをおく。
+		}
 	}
 	move(){
 	  if(this.effectArray.length > 0){
@@ -412,6 +423,83 @@ class master{
 		for(let i = 0; i < this.enemyArray.length; i++){
 			if(!this.enemyArray[i].alive){ this.enemyArray.splice(i, 1); }
 		}
+	}
+  gameOverCheck(){
+		// playerがやられたかどうか
+		return false;
+	}
+	clearCheck(){
+		// playerがクリアしたかどうか
+		return false;
+	}
+}
+
+class stage{
+	constructor(n, vol, interval, initial, enemyData, sizeParam){
+		this.id = n;
+		this.currentEnemyVolume = 0; // volとは限らないので
+		this.maxEnemyVolume = vol;
+		this.enemySetCounter = 0;
+		this.enemySetInterval = interval;
+		this.initialEnemyIdArray = initial; // 最初の時点で設置されている敵のid列（位置は改めて）
+		this.enemyData = enemyData; // どんな敵をどのくらい出すか。その割合を示すもの。idとratioの辞書の配列。
+		this.sizeParam = sizeParam;
+		this.enemyBox = []; // 長さ100のidが書かれたデータ列
+		this.empty = true;
+		this.full = false;
+		this.generateSign = false; // 敵を出すときtrueにする
+	}
+	reset(){
+		this.currentEnemyVolume = 0;
+		this.enemySetCounter = 0;
+	}
+	update(){
+		if(this.full){ return; } // fullのときはupdateしない
+		this.enemySetCounter++;
+		if(this.enemySetCounter === this.enemySetInterval){
+			this.generateSign = true;
+			if(!this.full){ this.enemySetCounter = 0; } // fullの場合は敵が倒れたときにカウンター発動。
+		}
+	}
+	createEnemyBox(){
+		// ratioの数だけidを放り込んで長さ100の配列を作る。とりあえず0が100個並びますね。
+		for(let i = 0; i < this.enemyData.length; i++){
+		  let data = this.enemyData.length;
+			let id = data.id;
+			for(let k = 0; k < data.ratio; k++){
+				this.enemyBox.push(id);
+			}
+		}
+	}
+  increaseEnemyVolume(){
+		if(this.full){ return; }
+		this.currentEnemyVolume++;
+		this.empty = false;
+		if(this.currentEnemyVolume === this.maxEnemyVolume){ this.full = true; }
+	}
+	decreaseEnemyVolume(){
+		if(this.empty){ return; }
+		this.currentEnemyVolume--;
+		if(this.full){ this.enemySetCounter = 0; } // fullで1匹でも倒れたらカウンター発動
+		this.full = false;
+		if(this.currentEnemyVolume === 0){ this.empty = true; }
+	}
+	getNextEnemyId(){
+		return random(this.enemyBox); // 次に出現する敵のidを取得する
+	}
+	signOff(){
+		this.generateSign = false; // 敵の作成の成功、失敗に依らずフラグは消す。
+	}
+}
+
+function getEnemy(id){
+  switch(id){
+		case 0:
+		  return new wanderer(0.04, 255, 0, 0);
+		case 1:
+			return new wanderer(0.08, 0, 255, 0);
+		case 2:
+		  return new wanderer(0.12, 0, 0, 255);
 	}
 }
 
