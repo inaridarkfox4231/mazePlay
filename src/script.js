@@ -29,13 +29,10 @@ function setup(){
 
 function draw(){
 	background(220);
+	entity.update();
 	entity.move();
 	entity.render();
-  //myPlayer.move();
-  //myWanderer.move();
-	//myMap.render();
-  //myPlayer.render();
-  //myWanderer.render();
+	entity.eject();
 }
 
 class stageMap{
@@ -165,7 +162,7 @@ class mover{
 		this.diff = 0;
 		this.myMap = mapData;
 		this.speed = speed;
-		this.live = true; // 排除用（ショットとか）
+		this.alive = true; // 排除用（ショットとか）
 	}
   update(){
     // なんか更新
@@ -300,18 +297,57 @@ class wanderer extends mover{
 	}
 }
 
+class effect{
+	constructor(life){
+		this.life = life;
+		this.alive = true;
+	}
+	update(){
+		console.log("alive");
+	  this.life--;
+		if(this.life === 0){ this.alive = false; }
+	}
+}
+
+class stopMessageEffect extends effect{
+	constructor(life, alpha, messageArray){
+		super(life);
+		this.quitOther = true;
+		this.alpha = alpha;
+		this.messageArray = messageArray;
+	}
+	render(){
+		fill(0, 0, 0, this.alpha);
+		rect(0, 0, width, height);
+		this.messageArray.forEach((mes) => {
+			fill(255);
+			textSize(mes.size);
+			text(mes.str, mes.x, mes.y);
+		})
+	}
+}
+
 // 統括者
 // 敵はプレイヤーの位置と離れたところにしか出したくない。
 class master{
 	constructor(x, y, w, h, g){
 		this.w = w;
 		this.h = h;
+		this.stageNumber = 1;
 		this.stageMap = new stageMap(w, h, g);
 		this.stageMap.createMaze(x, y);
 		this.stageMap.completion();
 		this.player;
 		this.enemyArray = [];
 		this.shotArray = [];
+		this.effectArray = []; // エフェクト。おわったらはじく。
+		this.createStartMessage();
+	}
+	createStartMessage(){
+		this.createStopMessageEffect(60, 80, [{str:"STAGE " + this.stageNumber, size:30, x:50, y:50}])
+	}
+	createStopMessageEffect(life, alpha, messageArray){
+		this.effectArray.push(new stopMessageEffect(life, alpha, messageArray));
 	}
 	setPlayer(x, y, speed){
 		this.player = new player(x, y, speed, this.stageMap);
@@ -348,15 +384,34 @@ class master{
 	}
 	update(){
 		// ...
+		this.effectArray.forEach((ef) => {ef.update();})
 	}
 	move(){
+	  if(this.effectArray.length > 0){
+			if(this.quitCheck()){ return; } // 実行しないかどうか決めるやつ。多分updateの方にも。
+		}
 		this.player.move();
 		this.enemyArray.forEach((e) => {e.move();})
+	}
+	quitCheck(){
+		let quitOther = false;
+		this.effectArray.forEach((ef) => { if(ef.quitOther && ef.alive){ quitOther = true; } })
+		return quitOther;
 	}
 	render(){
 		this.stageMap.render();
 		this.player.render();
 		this.enemyArray.forEach((e) => {e.render();})
+		this.effectArray.forEach((ef) => {ef.render();})
+	}
+	eject(){
+		// いなくなったenemy、終了したeffectの排除（こういうのは役割を分離したほうがいい）
+	  for(let i = 0; i < this.effectArray.length; i++){
+			if(!this.effectArray[i].alive){ this.effectArray.splice(i, 1); }
+		}
+		for(let i = 0; i < this.enemyArray.length; i++){
+			if(!this.enemyArray[i].alive){ this.enemyArray.splice(i, 1); }
+		}
 	}
 }
 
