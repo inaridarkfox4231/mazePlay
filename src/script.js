@@ -155,11 +155,11 @@ function getInitialMatrix(w, h, v){
 class mover{
 	constructor(x, y, speed, mapData){
 		this.from = {x:x, y:y};
-		this.to = {x:x, y:y};
 		this.dir = 0;
 		this.diff = 0;
 		this.myMap = mapData;
 		this.speed = speed;
+		this.live = true; // 排除用（ショットとか）
 	}
   update(){
     // なんか更新
@@ -173,28 +173,19 @@ class mover{
 	}
 	getToAround(id){
 		// toのid方向にあるマスのボード値を返す
-		return this.myMap.board[this.to.x + dx[id]][this.to.y + dy[id]];
+		return this.myMap.board[this.from.x + dx[this.dir] + dx[id]][this.from.y + dy[this.dir] + dy[id]];
 	}
 	turn(){
 		// 反転
+		this.from = {x:this.from.x + dx[this.dir], y:this.from.y + dy[this.dir]};
 		this.dir = (this.dir + 2) % 4;
 		this.diff = 1 - this.diff;
-		let tmp = {a:this.from.x, b:this.from.y};
-		this.from = {x:this.to.x, y:this.to.y};
-		this.to = {x:tmp.a, y:tmp.b};
 	}
 	setting(id){
     // diffが0の場合に入力を受け取ったとして次にどこに行くのか、どこにも行かないのかを判断し実行するパート。
     // たとえば敵の場合はdirの情報を元にして方向転換とかするんだろうなと。
     // 敵の場合getIdでdirを取得してるから、実質自分のdirを元にいろいろ決める事になりそう。
-    // これはデフォでいいや・・
-		let flag = this.getFromAround(id);
-		if(flag === 1){ // 1で動けるフラグ
-			// キー入力方向に進める場合はそっちにtoを設定する
-			this.to = {x:this.from.x + dx[id], y:this.from.y + dy[id]};
-			this.dir = id;
-		}
-    // 0の場合は何も起こらない・・敵の動きとかの場合、dir情報を元にここでいろいろ設定する感じかな。
+		this.dir = id;
 	}
 	getId(){
     // moveに必要な方向指示を取得する。プレイヤーならキー入力で受け取る。
@@ -203,8 +194,8 @@ class mover{
 	}
 	render(){
 		let g = this.myMap.grid;
-		let cellX = map(this.diff, 0, 1, this.from.x, this.to.x);
-		let cellY = map(this.diff, 0, 1, this.from.y, this.to.y);
+		let cellX = this.from.x + this.diff * dx[this.dir];
+		let cellY = this.from.y + this.diff * dy[this.dir];
 		fill(255, 201, 14);
 		rect(cellX * g, cellY * g, g, g);
 	}
@@ -214,16 +205,17 @@ class mover{
 class player extends mover{
   constructor(x, y, speed, mapData){
     super(x, y, speed, mapData);
-    // なにもありません（？）
+    // hp, pow, etc...
   }
   move(){
     // updateだと他にもやることあるのにぃってなるからmoveにした
 		let keyId = this.getId();
 		if(keyId < 0){ return; }
     // diffが0の場合にキー入力が行われると状況に応じてfrom, to, dirが設定される
-		if(this.diff === 0 && this.from.x === this.to.x && this.from.y === this.to.y){ this.setting(keyId); }
-		// settingしてもtoが変わらない＝その方向には行けない（dirは変化している）
-		if(this.from.x === this.to.x && this.from.y === this.to.y){ return; } // 行けない
+		if(this.diff === 0){
+			this.dir = keyId; // 移動できずともdirは変える
+			if(this.getFromAround(keyId) === 0){ return; } // その方向に進めない場合はreturn.
+		}
 		// diff補正パート
 		if(keyId === this.dir){ this.diff += this.speed; }
 		else if(keyId === (this.dir + 2) % 4){
@@ -240,11 +232,10 @@ class player extends mover{
 		// diff修正パート
 		if(this.diff < 1){ return; } // 1より小：何も起こらない
 		this.diff = 0;
-    // console.log("わふー" + this.to.x + ", " + this.to.y);
     // マスに到達した時のイベントとかここに書くといいかも？(to.x, to.yが該当マスになる)
     // たとえばゴールに着いたとき「CLEAR!」って表示されて次の階、とかそんなような。
+		this.from = {x:this.from.x + dx[this.dir], y:this.from.y + dy[this.dir]};
 		this.dir = keyId;
-		this.from = {x:this.to.x, y:this.to.y};
 	}
   getId(){
     // 方向をキー入力で取得
@@ -267,7 +258,7 @@ class wanderer extends mover{
     // updateだと他にもやることあるのにぃってなるからmoveにした
 		let id = this.dir;
     // diffが0の場合にキー入力が行われると状況に応じてfrom, to, dirが設定される
-		if(this.diff === 0 && this.from.x === this.to.x && this.from.y === this.to.y){ this.setting(id); }
+		if(this.diff === 0){ this.setting(id); }
 		// diff補正パート
 	  this.diff += this.speed;
 		// diff修正パート
@@ -276,7 +267,7 @@ class wanderer extends mover{
     //console.log("わふー" + this.to.x + ", " + this.to.y);
     // マスに到達した時のイベントとかここに書くといいかも？(to.x, to.yが該当マスになる)
     // たとえばゴールに着いたとき「CLEAR!」って表示されて次の階、とかそんなような。
-		this.from = {x:this.to.x, y:this.to.y};
+		this.from = {x:this.from.x + dx[this.dir], y:this.from.y + dy[this.dir]};
 	}
   getId(){ return this.dir; }
   setting(id){
@@ -293,13 +284,12 @@ class wanderer extends mover{
       // 行き止まりで引き返す感じ
       newDir = (id + 2) % 4;
     }
-    this.to = {x:this.from.x + dx[newDir], y:this.from.y + dy[newDir]};
     this.dir = newDir;
   }
   render(){
 		let g = this.myMap.grid;
-		let cellX = map(this.diff, 0, 1, this.from.x, this.to.x);
-		let cellY = map(this.diff, 0, 1, this.from.y, this.to.y);
+		let cellX = this.from.x + this.diff * dx[this.dir];
+		let cellY = this.from.y + this.diff * dy[this.dir];
 		fill(this.color);
 		rect(cellX * g, cellY * g, g, g);
 	}
