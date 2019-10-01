@@ -7,29 +7,35 @@
 // あと、playerの基底クラスを作って敵の動きやオブジェクト（攻撃）とかそういうのの動きに使いたい。んー・・
 "use strict";
 
-let myMap;
-let myPlayer;
-let myWanderer;
+let entity;
+//let myMap;
+//let myPlayer;
+//let myWanderer;
 const dx = [1, 0, -1, 0, 1]; // 4番目を用意しておくのが地味に大事
 const dy = [0, 1, 0, -1, 0];
 
 function setup(){
 	createCanvas(640, 480);
 	noStroke();
-	myMap = new stageMap(20, 15, 32);
-	myMap.createMaze(3, 3); // とりあえず(3, 3)を始点にしてみる。
-  myMap.completion();
-  myPlayer = new player(3, 3, 0.08, myMap);
-  myWanderer = new wanderer(3, 3, 0.04, myMap, 110, 0, 255);
+	//myMap = new stageMap(20, 15, 32);
+	//myMap.createMaze(3, 3); // とりあえず(3, 3)を始点にしてみる。
+  //myMap.completion();
+	entity = new master(1, 1, 15, 15, 32);
+	entity.setPlayer(1, 1, 0.08);
+	entity.setEnemy();
+  //myPlayer = new player(3, 3, 0.08, myMap);
+  //myWanderer = new wanderer(3, 3, 0.04, myMap, 110, 0, 255);
 }
 
 function draw(){
 	background(220);
-  myPlayer.move();
-  myWanderer.move();
-	myMap.render();
-  myPlayer.render();
-  myWanderer.render();
+	entity.move();
+	entity.render();
+  //myPlayer.move();
+  //myWanderer.move();
+	//myMap.render();
+  //myPlayer.render();
+  //myWanderer.render();
 }
 
 class stageMap{
@@ -100,9 +106,9 @@ class stageMap{
       }
     }
     this.goal = {x:a, y:b};
-    console.log("start:(" + this.start.x + ", " + this.start.y + ")");
-		console.log("goal:(" + this.goal.x + ", " + this.goal.y + ")");
-		console.log("mazeValue:" + this.cellValue[this.goal.x][this.goal.y]);
+    //console.log("start:(" + this.start.x + ", " + this.start.y + ")");
+		//console.log("goal:(" + this.goal.x + ", " + this.goal.y + ")");
+		//console.log("mazeValue:" + this.cellValue[this.goal.x][this.goal.y]);
   }
 	setFlag(x, y, flag){
 		this.board[x][y] = flag;
@@ -264,7 +270,6 @@ class wanderer extends mover{
 		// diff修正パート
 		if(this.diff < 1){ return; } // 1より小：何も起こらない
 		this.diff = 0;
-    //console.log("わふー" + this.to.x + ", " + this.to.y);
     // マスに到達した時のイベントとかここに書くといいかも？(to.x, to.yが該当マスになる)
     // たとえばゴールに着いたとき「CLEAR!」って表示されて次の階、とかそんなような。
 		this.from = {x:this.from.x + dx[this.dir], y:this.from.y + dy[this.dir]};
@@ -294,6 +299,67 @@ class wanderer extends mover{
 		rect(cellX * g, cellY * g, g, g);
 	}
 }
+
+// 統括者
+// 敵はプレイヤーの位置と離れたところにしか出したくない。
+class master{
+	constructor(x, y, w, h, g){
+		this.w = w;
+		this.h = h;
+		this.stageMap = new stageMap(w, h, g);
+		this.stageMap.createMaze(x, y);
+		this.stageMap.completion();
+		this.player;
+		this.enemyArray = [];
+		this.shotArray = [];
+	}
+	setPlayer(x, y, speed){
+		this.player = new player(x, y, speed, this.stageMap);
+	}
+	setEnemy(){
+		// とりあえず1匹
+		let pos = this.getEnemyPos(5);
+		this.enemyArray.push(new wanderer(pos.x, pos.y, 0.04, this.stageMap, 100, 100, 255));
+	}
+	getEnemyPos(size){
+		// ランダムにしか選べない。うまく行かなかったら(-1, -1)を返す。
+		// マップを5x5ずつに区切って、プレイヤーの位置と隣接しない区画を取り出し、その中からランダムで選ぶ感じ。
+		let bd = this.stageMap.board;
+		let p_xFlag = Math.floor(this.player.from.x / size);
+		let p_yFlag = Math.floor(this.player.from.y / size);
+		let choices = [];
+		for(let x = 0; x < this.w; x++){
+			for(let y = 0; y < this.h; y++){
+				if(bd[x][y] === 0){ continue; }
+				let xFlag = Math.floor(x / size);
+				let yFlag = Math.floor(y / size);
+				if(abs(xFlag - p_xFlag) <= 1 || abs(yFlag - p_yFlag) <= 1){ continue; } // 隣接を排除
+				choices.push({x:x, y:y});
+			}
+		}
+		if(choices.length === 0){ return {x:-1, y:-1}; }
+		return random(choices);
+	}
+	mapReset(x, y, w, h, g){
+		let smp = this.stageMap;
+		smp.reset(w, h, g);
+		smp.createMaze(x, y);
+		smp.completion();
+	}
+	update(){
+		// ...
+	}
+	move(){
+		this.player.move();
+		this.enemyArray.forEach((e) => {e.move();})
+	}
+	render(){
+		this.stageMap.render();
+		this.player.render();
+		this.enemyArray.forEach((e) => {e.render();})
+	}
+}
+
 // 接触判定の為にも座標は必要かもね。
 
 // 手順
