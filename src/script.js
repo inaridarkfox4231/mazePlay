@@ -55,7 +55,10 @@ class stageMap{
     this.start = {x:x, y:y};
     let stack = [{x:x, y:y}];
     for(let i = 0; i < this.w * this.h; i++){
-      if(stack.length === 0){ console.log("探索回数" + i + "回"); break; }
+      if(stack.length === 0){
+				//console.log("探索回数" + i + "回");
+				break;
+			}
       let cur = stack.pop();
       let a = cur.x;
       let b = cur.y;
@@ -96,6 +99,7 @@ class stageMap{
       }
     }
     this.goal = {x:a, y:b};
+		// goalのフラグを1から3に変更する
     //console.log("start:(" + this.start.x + ", " + this.start.y + ")");
 		//console.log("goal:(" + this.goal.x + ", " + this.goal.y + ")");
 		//console.log("mazeValue:" + this.cellValue[this.goal.x][this.goal.y]);
@@ -153,7 +157,7 @@ class mover{
 		this.from = {};
 		this.dir = 0;
 		this.diff = 0;
-		this.myMap;
+		this.myMap = undefined;
 		this.speed = speed;
 		this.alive = true; // 排除用（ショットとか）
 	}
@@ -222,10 +226,10 @@ class player extends mover{
 			this.turn();
 			this.diff += this.speed;
 		}else{
-			if(this.diff <= 0.25 && this.getFromAround(keyId) === 1){
+			if(this.diff <= 0.25 && (this.getFromAround(keyId) & 1)){
 				this.turn();
 				this.diff += this.speed;
-			}else if(this.diff >= 0.75 && this.getToAround(keyId) === 1){
+			}else if(this.diff >= 0.75 && (this.getToAround(keyId) & 1)){
 				this.diff += this.speed;
 			}else{ return; } // これ以外のケースでは滑りが発生しない
 		}
@@ -274,7 +278,7 @@ class wanderer extends mover{
     // ランダムでチョイス（要するに引き返さない）。すべてダメのときは行き止まり。引き返す。
     let choices = [];
     for(let c = 3; c <= 5; c++){
-      if(this.getFromAround((id + c) % 4) === 1){ choices.push((id + c) % 4); }
+      if(this.getFromAround((id + c) % 4) & 1){ choices.push((id + c) % 4); }
     }
     let newDir = -1;
     if(choices.length > 0){
@@ -300,7 +304,6 @@ class effect{
 		this.alive = true;
 	}
 	update(){
-		console.log("alive");
 	  this.life--;
 		if(this.life === 0){ this.alive = false; }
 	}
@@ -336,7 +339,7 @@ class master{
 		this.stageMap = new stageMap(this.w, this.h, param.g);
 		this.stageMap.createMaze(x, y);
 		this.stageMap.completion();
-		this.player;
+		this.player = undefined;
 		this.setPlayer(x, y, 0.08);
 		this.enemyArray = [];
 		this.shotArray = [];
