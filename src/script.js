@@ -41,8 +41,17 @@ class stageMap{
 		for(let x = 0; x < w; x++){ this.board[x][0] = 0; this.board[x][h - 1] = 0; }
 		for(let y = 0; y < h; y++){ this.board[0][y] = 0; this.board[w - 1][y] = 0; }
 	}
+	reconstruction(x, y, param){
+		// 再構築～
+		this.reset(param.w, param.h, param.g);
+		this.createMaze(x, y);
+		console.log(x + " " + y);
+		this.completion();
+	}
   reset(w, h, grid){
     // 横w, 縦h, マスの大きさgridで初期化する。
+		this.w = w;
+		this.h = h;
     this.grid = grid;
     this.board = getInitialMatrix(w, h, -1);
     this.cellValue = getInitialMatrix(w, h, -1);
@@ -99,7 +108,7 @@ class stageMap{
       }
     }
     this.goal = {x:a, y:b};
-		// goalのフラグを1から3に変更する
+		this.setFlag(a, b, 3); // goalのフラグを1から3に変更する
     //console.log("start:(" + this.start.x + ", " + this.start.y + ")");
 		//console.log("goal:(" + this.goal.x + ", " + this.goal.y + ")");
 		//console.log("mazeValue:" + this.cellValue[this.goal.x][this.goal.y]);
@@ -178,6 +187,10 @@ class mover{
 	getToAround(id){
 		// toのid方向にあるマスのボード値を返す
 		return this.myMap.board[this.from.x + dx[this.dir] + dx[id]][this.from.y + dy[this.dir] + dy[id]];
+	}
+	getFlag(){
+		// fromのboard値を返す感じ
+		return this.myMap.board[this.from.x][this.from.y];
 	}
 	turn(){
 		// 反転
@@ -331,21 +344,43 @@ class stopMessageEffect extends effect{
 // 敵はプレイヤーの位置と離れたところにしか出したくない。
 class master{
 	constructor(x, y){
-		this.stageArray = [new stage(1, 1, 600, [0], [{id:0, ratio:100}], {w:15, h:15, g:32})]
-		this.stage = this.stageArray[0];
+		this.stageArray = [new stage(1, 1, 600, [0], [{id:0, ratio:100}], {w:15, h:15, g:32}),
+		                   new stage(2, 1, 600, [0], [{id:0, ratio:100}], {w:17, h:15, g:32})];
+		this.stageIndex = 0;
+		//this.stage = this.stageArray[0];
+		this.stage = undefined;
+		//let param = this.stage.sizeParam;
+		//this.w = param.w; // 0.
+		//this.h = param.h; // 1.
+		this.w = 1;
+		this.h = 1;
+		this.stageMap = new stageMap(1, 1, 1); // 2.
+		//this.stageMap.createMaze(x, y); // 3.
+		//this.stageMap.completion(); // 4.
+		this.enemyArray = []; // 5.
+		this.shotArray = []; // 6.
+		this.effectArray = []; // エフェクト。おわったらはじく。 7.
+		//this.createStartMessage(); // 8.
+		//this.createEnemyMulti(this.stage.initialEnemyIdArray); // 初期配置 9.
+		this.player = new player(0.08);
+		this.setStage(x, y);
+		//this.setPlayer(x, y, 0.08);
+	}
+	setStage(x, y){
+		this.stage = this.stageArray[this.stageIndex];
 		let param = this.stage.sizeParam;
+		this.stageMap.reconstruction(x, y, param);
 		this.w = param.w;
 		this.h = param.h;
-		this.stageMap = new stageMap(this.w, this.h, param.g);
-		this.stageMap.createMaze(x, y);
-		this.stageMap.completion();
-		this.player = undefined;
-		this.setPlayer(x, y, 0.08);
+		//this.stageMap.reset(this.w, this.h, param.g);
+		//this.stageMap.createMaze(x, y);
+		//this.stageMap.completion();
 		this.enemyArray = [];
 		this.shotArray = [];
-		this.effectArray = []; // エフェクト。おわったらはじく。
+		this.effectArray = [];
 		this.createStartMessage();
-		this.createEnemyMulti(this.stage.initialEnemyIdArray); // 初期配置
+		this.setPlayer(x, y);
+		this.createEnemyMulti(this.stage.initialEnemyIdArray);
 	}
 	createStartMessage(){
 		this.createStopMessageEffect(60, 80, [{str:"STAGE " + this.stage.id, size:30, x:50, y:50}])
@@ -353,14 +388,15 @@ class master{
 	createStopMessageEffect(life, alpha, messageArray){
 		this.effectArray.push(new stopMessageEffect(life, alpha, messageArray));
 	}
-	setPlayer(x, y, speed){
-		this.player = new player(speed);
+	setPlayer(x, y){
+		//this.player = new player(speed);
 		this.player.setPosData(x, y, this.stageMap);
 	}
 	createEnemy(id){
 		// とりあえず1匹
 		if(this.stage.full){ return false; } // ステージの存在可能敵数がMAX
 		let pos = this.getEnemyPos(4);
+		console.log(pos);
 		if(pos.x < 0){ return false; } // 取得に失敗
 		let enemy = getEnemy(id);
 		enemy.setPosData(pos.x, pos.y, this.stageMap); // 位置情報を登録。
@@ -388,6 +424,7 @@ class master{
 				choices.push({x:x, y:y});
 			}
 		}
+		console.log(choices);
 		if(choices.length === 0){ return {x:-1, y:-1}; }
 		return random(choices);
 	}
@@ -433,6 +470,7 @@ class master{
 	}
 	clearCheck(){
 		// playerがクリアしたかどうか
+		if(this.player.getFlag() === 3){ return true; }
 		return false;
 	}
 }
