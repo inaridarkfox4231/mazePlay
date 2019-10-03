@@ -46,7 +46,7 @@ class stageMap{
 		// 再構築～
 		this.reset(param.w, param.h, param.g);
 		this.createMaze(x, y);
-		console.log(x + " " + y);
+		//console.log(x + " " + y);
 		this.completion();
 	}
   reset(w, h, grid){
@@ -383,8 +383,8 @@ class message{
 class master{
 	constructor(x, y){
 		this.stageArray = [new stage(1, 1, 120, [0], [{id:0, ratio:100}], {w:10, h:10, g:32}),
-		                   new stage(2, 2, 120, [1], [{id:0, ratio:50}, {id:1, ratio:50}], {w:15, h:10, g:32}),
-                       new stage(3, 3, 120, [2], [{id:0, ratio:30}, {id:1, ratio:30}, {id:2, ratio:40}], {w:15, h:15, g:32})
+		                   new stage(2, 2, 120, [1], [{id:0, ratio:50}, {id:1, ratio:50}], {w:10, h:10, g:32}),
+                       new stage(3, 3, 120, [2], [{id:0, ratio:30}, {id:1, ratio:30}, {id:2, ratio:40}], {w:10, h:10, g:32})
 											 ];
 		this.stageIndex = 0;
 		//this.stage = this.stageArray[0];
@@ -437,7 +437,7 @@ class master{
 	createEnemy(id){
 		// とりあえず1匹
 		if(this.stage.full){ return false; } // ステージの存在可能敵数がMAX
-		let pos = this.getEnemyPos(4);
+		let pos = this.getEnemyPos(5);
 		//console.log(pos);
 		if(pos.x < 0){ return false; } // 取得に失敗
 		let enemy = getEnemy(id);
@@ -462,7 +462,8 @@ class master{
 				if(!(bd[x][y] & 1)){ continue; }
 				let xFlag = Math.floor(x / size);
 				let yFlag = Math.floor(y / size);
-				if(abs(xFlag - p_xFlag) <= 1 || abs(yFlag - p_yFlag) <= 1){ continue; } // 隣接を排除
+				if(abs(xFlag - p_xFlag) <= 1 && yFlag === p_yFlag){ continue; } // 隣接を排除
+				if(abs(yFlag - p_yFlag) <= 1 && xFlag === p_xFlag){ continue; }
 				choices.push({x:x, y:y});
 			}
 		}
@@ -531,7 +532,7 @@ class master{
 				//console.log("non active");
 				switch(this.message.id){
 					case 1:
-					  this.stageIndex++;
+					  this.stageIndex = (this.stageIndex + 1) % this.stageArray.length;
 						let goal = this.stageMap.goal;
 						this.setStage(goal.x, goal.y);
 						break;
@@ -568,8 +569,16 @@ class stage{
 			if(!this.full){ this.enemySetCounter = 0; } // fullの場合は敵が倒れたときにカウンター発動。
 		}
 	}
-	createEnemyBox(){
+	enemyReset(){
 		this.enemyBox = [];
+		this.full = false;
+		this.empty = true;
+		this.generateSign = false;
+		this.enemySetCounter = 0;
+		this.currentEnemyVolume = 0;
+	}
+	createEnemyBox(){
+		this.enemyReset();
 		// ratioの数だけidを放り込んで長さ100の配列を作る。とりあえず0が100個並びますね。
 		for(let i = 0; i < this.enemyData.length; i++){
 		  let data = this.enemyData[i]; // ここlengthになってた。信じられない。
