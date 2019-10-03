@@ -182,6 +182,7 @@ class mover{
 	}
 	setPosData(x, y, mapData){
 		this.from = {x:x, y:y};
+		this.diff = 0;
 		this.myMap = mapData;
 	}
   update(){
@@ -608,7 +609,7 @@ class master{
 	}
 	clearCheck(){
 		// playerがクリアしたかどうか
-		if(this.player.getFlag() === 3){
+		if(this.player.getFlag() === 3 && this.player.diff === 0){
 			return true;
 		}
 		return false;
