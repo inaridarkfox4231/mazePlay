@@ -8,9 +8,7 @@
 "use strict";
 
 let entity;
-//let myMap;
-//let myPlayer;
-//let myWanderer;
+let keyFlag;
 const dx = [1, 0, -1, 0, 1]; // 4番目を用意しておくのが地味に大事
 const dy = [0, 1, 0, -1, 0];
 
@@ -18,15 +16,26 @@ function setup(){
 	createCanvas(640, 480);
 	noStroke();
 	entity = new master(1, 1);
+	keyFlag = 0;
 }
 
 function draw(){
 	background(220);
 	entity.update();
+	entity.signCheck();
 	entity.move();
 	entity.render();
 	entity.eject();
 	entity.check();
+}
+
+function keyTyped(){
+  if(key === 'q'){ keyFlag |= 1; } // Qでショット変更。
+  else if(key === 'z'){ keyFlag |= 2; } // Zで発射。
+}
+
+function flagReset(){
+	keyFlag = 0;
 }
 
 class stageMap{
@@ -177,6 +186,7 @@ class mover{
 	}
   update(){
     // なんか更新
+		return;
   }
 	move(){
     // updateだと他にもやることあるのにぃってなるからmoveにした。いろんな挙動。
@@ -211,11 +221,7 @@ class mover{
     return -1;
 	}
 	render(){
-		let g = this.myMap.grid;
-		let cellX = this.from.x + this.diff * dx[this.dir];
-		let cellY = this.from.y + this.diff * dy[this.dir];
-		fill(255, 201, 14);
-		rect(cellX * g, cellY * g, g, g);
+    return;
 	}
 }
 
@@ -224,8 +230,14 @@ class player extends mover{
   constructor(speed){
     super(speed);
     // hp, pow, etc...
+		this.shotTypeId = 0;
+		this.shotSign = false;
   }
+	update(){
+		if(keyFlag & 2){ this.shotSign = true; } // Zキーでショット発射. 種類はidで判断。
+	}
   move(){
+		if(!this.alive){ return; }
     // updateだと他にもやることあるのにぃってなるからmoveにした
 		let keyId = this.getId();
 		if(keyId < 0){ return; }
@@ -263,6 +275,16 @@ class player extends mover{
 		if(keyIsDown(UP_ARROW)){ return 3; }
 		return -1;
   }
+	getShotType(){ return this.shotTypeId; }
+	signOff(){ this.shotSign = false; flagReset(); } // メソッドでオフにする
+	render(){
+		if(!this.alive){ return; }
+		let g = this.myMap.grid;
+		let cellX = this.from.x + this.diff * dx[this.dir];
+		let cellY = this.from.y + this.diff * dy[this.dir];
+		fill(255, 201, 14);
+		rect(cellX * g, cellY * g, g, g);
+	}
 }
 
 // 徘徊し続ける、だけ
@@ -273,6 +295,7 @@ class wanderer extends mover{
     this.color = color(r, g, b);
   }
   move(){
+		if(!this.alive){ return; }
     // updateだと他にもやることあるのにぃってなるからmoveにした
 		let id = this.dir;
     // diffが0の場合にキー入力が行われると状況に応じてfrom, to, dirが設定される
@@ -286,7 +309,6 @@ class wanderer extends mover{
     // たとえばゴールに着いたとき「CLEAR!」って表示されて次の階、とかそんなような。
 		this.from = {x:this.from.x + dx[this.dir], y:this.from.y + dy[this.dir]};
 	}
-  getId(){ return this.dir; }
   setting(id){
     // idを元にして、次の行先を決める。getFromAroundのid, id-1, id+1を見てこのうちtrueなのを放り込み、
     // ランダムでチョイス（要するに引き返さない）。すべてダメのときは行き止まり。引き返す。
@@ -304,11 +326,78 @@ class wanderer extends mover{
     this.dir = newDir;
   }
   render(){
+		if(!this.alive){ return; }
 		let g = this.myMap.grid;
 		let cellX = this.from.x + this.diff * dx[this.dir];
 		let cellY = this.from.y + this.diff * dy[this.dir];
 		fill(this.color);
 		rect(cellX * g, cellY * g, g, g);
+	}
+}
+
+class shot extends mover{
+  constructor(speed){
+		super(speed);
+	}
+	setData(x, y, mapData, diff, dir){
+		this.x = x;
+		this.y = y;
+		this.myMap = mapData;
+		this.diff = diff;
+		this.dir = dir;
+	}
+	move(){
+		if(!this.alive){ return; }
+		// wandererと同じ
+		let id = this.dir;
+		if(this.diff === 0){ this.setting(id); }
+	  this.diff += this.speed;
+		if(this.diff < 1){ return; } // 1より小：何も起こらない
+		this.diff = 0;
+		this.from = {x:this.from.x + dx[this.dir], y:this.from.y + dy[this.dir]};
+	}
+}
+
+// 回転する四角形。
+// 前に行けるときは直進するが前に行けないと左右の行けるほうに曲がる。
+// 曲がれる回数が決まっててそのたびに減っていく。
+// 0のときに前に行けないと消える。
+// いつものようにmove:動き方、setting:マス目ピッタリの時の方向指定、render:描画表現
+class straightShot extends shot{
+	constructor(speed, r, g, b, turnCount){
+		super(speed);
+		this.color = color(r, g, b);
+		this.turnCount = turnCount;
+		this.rotationCount = 0;
+	}
+	update(){
+	  this.rotationCount += 0.1;
+		if(this.turnCount === 0){
+			this.alive = false; // なんかエフェクト出す？ejectで排除するときどっかに放り込んでおいて、
+			// メソッドでエフェクトを出させた後で配列を空にするとか。どっかってmasterのtrashとかそういう。
+		}
+	}
+	setting(id){
+		// 真正面に行ける：直進。行けない：左右に行ければどっちかに曲がりカウント-1. 行き止まり：そのまま消滅。
+		if(this.getFromAround(id) & 1){ return; }
+		let toLeft = this.getFromAround((id + 3) % 4) & 1;
+		let toRight = this.getFromAround((id + 5) % 4) & 1;
+		if(toLeft === 0 && toRight === 0){ this.turnCount = 0; return; }
+		this.turnCount--;
+		if(toLeft & toRight){ this.dir = (this.dir + random([3, 5])) % 4; }
+		else if(toLeft){ this.dir = (this.dir + 3) % 4; }
+		else{ this.dir = (this.dir + 5) % 4; }
+		return;
+	}
+	render(){
+		if(!this.alive){ return; }
+		let g = this.myMap.grid;
+    push();
+		translate((this.x + this.diff + 0.5) * g, (this.y + this.diff + 0.5) * g);
+		rotate(this.rotationCount)
+		fill(this.color);
+		rect(-g * 0.4, -g * 0.4, g * 0.8, g * 0.8);
+		pop();
 	}
 }
 
@@ -326,7 +415,6 @@ class effect{
 class stopMessageEffect extends effect{
 	constructor(life, typeStr, alpha, messageArray){
 		super(life);
-		//this.quitOther = true;
 		this.typeStr = typeStr;
 		this.alpha = alpha;
 		this.messageArray = messageArray;
@@ -387,25 +475,16 @@ class master{
                        new stage(3, 3, 120, [2], [{id:0, ratio:30}, {id:1, ratio:30}, {id:2, ratio:40}], {w:10, h:10, g:32})
 											 ];
 		this.stageIndex = 0;
-		//this.stage = this.stageArray[0];
 		this.stage = undefined;
-		//let param = this.stage.sizeParam;
-		//this.w = param.w; // 0.
-		//this.h = param.h; // 1.
 		this.w = 1;
 		this.h = 1;
 		this.stageMap = new stageMap(1, 1, 1); // 2.
-		//this.stageMap.createMaze(x, y); // 3.
-		//this.stageMap.completion(); // 4.
 		this.enemyArray = []; // 5.
 		this.shotArray = []; // 6.
 		this.effectArray = []; // エフェクト。おわったらはじく。 7.
 		this.message = new message(); // スタートとかクリアとかの画面暗くなるやつ。effectとは別。
-		//this.createStartMessage(); // 8.
-		//this.createEnemyMulti(this.stage.initialEnemyIdArray); // 初期配置 9.
 		this.player = new player(0.08);
 		this.setStage(x, y);
-		//this.setPlayer(x, y, 0.08);
 	}
 	setStage(x, y){
 		this.stage = this.stageArray[this.stageIndex];
@@ -414,9 +493,6 @@ class master{
 		this.stageMap.reconstruction(x, y, param);
 		this.w = param.w;
 		this.h = param.h;
-		//this.stageMap.reset(this.w, this.h, param.g);
-		//this.stageMap.createMaze(x, y);
-		//this.stageMap.completion();
 		this.enemyArray = [];
 		this.shotArray = [];
 		this.effectArray = [];
@@ -431,14 +507,12 @@ class master{
 		this.message.setting(1, 50, 50, 'STAGE CLEAR!', 60);
 	}
 	setPlayer(x, y){
-		//this.player = new player(speed);
 		this.player.setPosData(x, y, this.stageMap);
 	}
 	createEnemy(id){
 		// とりあえず1匹
 		if(this.stage.full){ return false; } // ステージの存在可能敵数がMAX
 		let pos = this.getEnemyPos(5);
-		//console.log(pos);
 		if(pos.x < 0){ return false; } // 取得に失敗
 		let enemy = getEnemy(id);
 		enemy.setPosData(pos.x, pos.y, this.stageMap); // 位置情報を登録。
@@ -467,36 +541,45 @@ class master{
 				choices.push({x:x, y:y});
 			}
 		}
-		//console.log(choices);
 		if(choices.length === 0){ return {x:-1, y:-1}; }
 		return random(choices);
 	}
 	update(){
 		// ...
 	  if(this.message.active){ return; }
+		this.shotArray.forEach((s) => {s.update();})
     this.effectArray.forEach((ef) => {ef.update();})
 		this.stage.update();
+		this.player.update();
+	}
+	signCheck(){
 		if(this.stage.generateSign){
       this.createEnemy(this.stage.getNextEnemyId()); // 敵を1匹出す
 			this.stage.signOff(); // 必ずOffにする
+		}
+		if(this.player.shotSign){
+			console.log("shot!");
+			this.player.signOff(); // 必ずOffにする
 		}
 	}
 	move(){
     if(this.message.active){ return; }
 		this.player.move();
+		this.shotArray.forEach((s) => {s.move();})
 		this.enemyArray.forEach((e) => {e.move();})
 	}
 	render(){
 		this.stageMap.render();
 		this.player.render();
 		this.enemyArray.forEach((e) => {e.render();})
+		this.shotArray.forEach((s) => {s.render();})
 		this.effectArray.forEach((ef) => {ef.render();})
 		this.message.render();
 	}
 	eject(){
 		// いなくなったenemy、終了したeffectの排除（こういうのは役割を分離したほうがいい）
-		if(this.stopEffect !== undefined){
-		  if(!this.stopEffect.alive){ this.stopEffect = undefined; }
+		for(let i = 0; i < this.shotArray.length; i++){
+			if(!this.shotArray[i].alive){ this.shotArray.splice(i, 1); }
 		}
 	  for(let i = 0; i < this.effectArray.length; i++){
 			if(!this.effectArray[i].alive){ this.effectArray.splice(i, 1); }
@@ -512,7 +595,6 @@ class master{
 	clearCheck(){
 		// playerがクリアしたかどうか
 		if(this.player.getFlag() === 3){
-			//console.log("clear");
 			return true;
 		}
 		return false;
@@ -527,9 +609,7 @@ class master{
 		}
 		if(this.message.active){
 			this.message.update();
-			//console.log(this.message.id);
 			if(!this.message.active){
-				//console.log("non active");
 				switch(this.message.id){
 					case 1:
 					  this.stageIndex = (this.stageIndex + 1) % this.stageArray.length;
