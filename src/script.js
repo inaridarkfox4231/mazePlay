@@ -26,6 +26,7 @@ function draw(){
 	entity.move();
 	entity.render();
 	entity.eject();
+	entity.check();
 }
 
 class stageMap{
@@ -323,9 +324,10 @@ class effect{
 }
 
 class stopMessageEffect extends effect{
-	constructor(life, alpha, messageArray){
+	constructor(life, typeStr, alpha, messageArray){
 		super(life);
-		this.quitOther = true;
+		//this.quitOther = true;
+		this.typeStr = typeStr;
 		this.alpha = alpha;
 		this.messageArray = messageArray;
 	}
@@ -340,12 +342,50 @@ class stopMessageEffect extends effect{
 	}
 }
 
+class message{
+	constructor(){
+		this.id = -1;
+		this.x = 0;
+		this.y = 0;
+		this._str = "";
+		this.life = 0;
+		this.active = false;
+	}
+	setting(id, x, y, _str, life){
+		this.id = id; // 0:stage x, 1:clear
+		this.x = x;
+		this.y = y;
+		this._str = _str;
+		this.life = life;
+		this.active = true;
+	}
+	inActivate(){
+		this.active = false;
+	}
+	update(){
+		if(!this.active){ return; }
+		//console.log(this.life);
+		this.life--;
+		if(this.life === 0){ this.inActivate(); }
+	}
+	render(){
+		if(!this.active){ return; }
+		fill(0, 0, 0, 80);
+		rect(0, 0, width, height);
+		fill(255);
+		textSize(30);
+		text(this._str, this.x, this.y);
+	}
+}
+
 // 統括者
 // 敵はプレイヤーの位置と離れたところにしか出したくない。
 class master{
 	constructor(x, y){
-		this.stageArray = [new stage(1, 1, 600, [0], [{id:0, ratio:100}], {w:15, h:15, g:32}),
-		                   new stage(2, 1, 600, [0], [{id:0, ratio:100}], {w:17, h:15, g:32})];
+		this.stageArray = [new stage(1, 1, 120, [0], [{id:0, ratio:100}], {w:10, h:10, g:32}),
+		                   new stage(2, 2, 120, [1], [{id:0, ratio:50}, {id:1, ratio:50}], {w:15, h:10, g:32}),
+                       new stage(3, 3, 120, [2], [{id:0, ratio:30}, {id:1, ratio:30}, {id:2, ratio:40}], {w:15, h:15, g:32})
+											 ];
 		this.stageIndex = 0;
 		//this.stage = this.stageArray[0];
 		this.stage = undefined;
@@ -360,6 +400,7 @@ class master{
 		this.enemyArray = []; // 5.
 		this.shotArray = []; // 6.
 		this.effectArray = []; // エフェクト。おわったらはじく。 7.
+		this.message = new message(); // スタートとかクリアとかの画面暗くなるやつ。effectとは別。
 		//this.createStartMessage(); // 8.
 		//this.createEnemyMulti(this.stage.initialEnemyIdArray); // 初期配置 9.
 		this.player = new player(0.08);
@@ -368,6 +409,7 @@ class master{
 	}
 	setStage(x, y){
 		this.stage = this.stageArray[this.stageIndex];
+		this.stage.createEnemyBox();
 		let param = this.stage.sizeParam;
 		this.stageMap.reconstruction(x, y, param);
 		this.w = param.w;
@@ -378,15 +420,15 @@ class master{
 		this.enemyArray = [];
 		this.shotArray = [];
 		this.effectArray = [];
-		this.createStartMessage();
+		this.setStartMessage();
 		this.setPlayer(x, y);
 		this.createEnemyMulti(this.stage.initialEnemyIdArray);
 	}
-	createStartMessage(){
-		this.createStopMessageEffect(60, 80, [{str:"STAGE " + this.stage.id, size:30, x:50, y:50}])
+	setStartMessage(){
+		this.message.setting(0, 50, 50, 'STAGE ' + this.stage.id, 60);
 	}
-	createStopMessageEffect(life, alpha, messageArray){
-		this.effectArray.push(new stopMessageEffect(life, alpha, messageArray));
+	setClearMessage(){
+		this.message.setting(1, 50, 50, 'STAGE CLEAR!', 60);
 	}
 	setPlayer(x, y){
 		//this.player = new player(speed);
@@ -396,7 +438,7 @@ class master{
 		// とりあえず1匹
 		if(this.stage.full){ return false; } // ステージの存在可能敵数がMAX
 		let pos = this.getEnemyPos(4);
-		console.log(pos);
+		//console.log(pos);
 		if(pos.x < 0){ return false; } // 取得に失敗
 		let enemy = getEnemy(id);
 		enemy.setPosData(pos.x, pos.y, this.stageMap); // 位置情報を登録。
@@ -417,46 +459,44 @@ class master{
 		let choices = [];
 		for(let x = 0; x < this.w; x++){
 			for(let y = 0; y < this.h; y++){
-				if(bd[x][y] === 0){ continue; }
+				if(!(bd[x][y] & 1)){ continue; }
 				let xFlag = Math.floor(x / size);
 				let yFlag = Math.floor(y / size);
 				if(abs(xFlag - p_xFlag) <= 1 || abs(yFlag - p_yFlag) <= 1){ continue; } // 隣接を排除
 				choices.push({x:x, y:y});
 			}
 		}
-		console.log(choices);
+		//console.log(choices);
 		if(choices.length === 0){ return {x:-1, y:-1}; }
 		return random(choices);
 	}
 	update(){
 		// ...
+	  if(this.message.active){ return; }
+    this.effectArray.forEach((ef) => {ef.update();})
 		this.stage.update();
-		this.effectArray.forEach((ef) => {ef.update();})
 		if(this.stage.generateSign){
       this.createEnemy(this.stage.getNextEnemyId()); // 敵を1匹出す
-			this.stage.signOff(); // 作成に失敗したらまたインターバルをおく。
+			this.stage.signOff(); // 必ずOffにする
 		}
 	}
 	move(){
-	  if(this.effectArray.length > 0){
-			if(this.quitCheck()){ return; } // 実行しないかどうか決めるやつ。多分updateの方にも。
-		}
+    if(this.message.active){ return; }
 		this.player.move();
 		this.enemyArray.forEach((e) => {e.move();})
-	}
-	quitCheck(){
-		let quitOther = false;
-		this.effectArray.forEach((ef) => { if(ef.quitOther && ef.alive){ quitOther = true; } })
-		return quitOther;
 	}
 	render(){
 		this.stageMap.render();
 		this.player.render();
 		this.enemyArray.forEach((e) => {e.render();})
 		this.effectArray.forEach((ef) => {ef.render();})
+		this.message.render();
 	}
 	eject(){
 		// いなくなったenemy、終了したeffectの排除（こういうのは役割を分離したほうがいい）
+		if(this.stopEffect !== undefined){
+		  if(!this.stopEffect.alive){ this.stopEffect = undefined; }
+		}
 	  for(let i = 0; i < this.effectArray.length; i++){
 			if(!this.effectArray[i].alive){ this.effectArray.splice(i, 1); }
 		}
@@ -470,8 +510,34 @@ class master{
 	}
 	clearCheck(){
 		// playerがクリアしたかどうか
-		if(this.player.getFlag() === 3){ return true; }
+		if(this.player.getFlag() === 3){
+			//console.log("clear");
+			return true;
+		}
 		return false;
+	}
+	check(){
+		// 各種チェック(gameover, clear, message, etc)
+		if(this.gameOverCheck() && !(this.message.active)){
+		  /* 処理 */
+	  }
+		if(this.clearCheck() && !(this.message.active)){
+			this.setClearMessage();
+		}
+		if(this.message.active){
+			this.message.update();
+			//console.log(this.message.id);
+			if(!this.message.active){
+				//console.log("non active");
+				switch(this.message.id){
+					case 1:
+					  this.stageIndex++;
+						let goal = this.stageMap.goal;
+						this.setStage(goal.x, goal.y);
+						break;
+				}
+			}
+		}
 	}
 }
 
@@ -503,9 +569,10 @@ class stage{
 		}
 	}
 	createEnemyBox(){
+		this.enemyBox = [];
 		// ratioの数だけidを放り込んで長さ100の配列を作る。とりあえず0が100個並びますね。
 		for(let i = 0; i < this.enemyData.length; i++){
-		  let data = this.enemyData.length;
+		  let data = this.enemyData[i]; // ここlengthになってた。信じられない。
 			let id = data.id;
 			for(let k = 0; k < data.ratio; k++){
 				this.enemyBox.push(id);
