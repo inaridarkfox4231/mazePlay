@@ -275,7 +275,7 @@ class player extends mover{
 		if(keyIsDown(UP_ARROW)){ return 3; }
 		return -1;
   }
-	getShotType(){ return this.shotTypeId; }
+	getShotTypeId(){ return this.shotTypeId; }
 	signOff(){ this.shotSign = false; flagReset(); } // メソッドでオフにする
 	render(){
 		if(!this.alive){ return; }
@@ -339,12 +339,12 @@ class shot extends mover{
   constructor(speed){
 		super(speed);
 	}
-	setData(x, y, mapData, diff, dir){
-		this.x = x;
-		this.y = y;
-		this.myMap = mapData;
-		this.diff = diff;
-		this.dir = dir;
+	setData(_mover){
+		this.from.x = _mover.from.x;
+		this.from.y = _mover.from.y;
+		this.myMap = _mover.myMap;
+		this.diff = _mover.diff;
+		this.dir = _mover.dir;
 	}
 	move(){
 		if(!this.alive){ return; }
@@ -393,10 +393,11 @@ class straightShot extends shot{
 		if(!this.alive){ return; }
 		let g = this.myMap.grid;
     push();
-		translate((this.x + this.diff + 0.5) * g, (this.y + this.diff + 0.5) * g);
+		translate((this.from.x + this.diff * dx[this.dir] + 0.5) * g, (this.from.y + this.diff * dy[this.dir] + 0.5) * g);
 		rotate(this.rotationCount)
 		fill(this.color);
 		rect(-g * 0.4, -g * 0.4, g * 0.8, g * 0.8);
+		//rect((this.from.x + this.diff * dx[this.dir]) * g, (this.from.y + this.diff * dy[this.dir]) * g, g, g);
 		pop();
 	}
 }
@@ -524,6 +525,19 @@ class master{
 		// 複数版。ただしすべて配置できるとは限らない。
     idArray.forEach((id) => {this.createEnemy(id);})
 	}
+	createShot(id){
+		if(id < 3){ this.createStraightShot(id); return; }
+	}
+	createStraightShot(id){
+		let s;
+		switch(id){
+			case 0:
+			  s = new straightShot(0.06, 0, 162, 232, 2);
+				break;
+		}
+		s.setData(this.player);
+		this.shotArray.push(s);
+	}
 	getEnemyPos(size){
 		// ランダムにしか選べない。うまく行かなかったら(-1, -1)を返す。
 		// マップを5x5ずつに区切って、プレイヤーの位置と隣接しない区画を取り出し、その中からランダムで選ぶ感じ。
@@ -558,7 +572,7 @@ class master{
 			this.stage.signOff(); // 必ずOffにする
 		}
 		if(this.player.shotSign){
-			console.log("shot!");
+			this.createShot(this.player.getShotTypeId()); // shotを一発出す
 			this.player.signOff(); // 必ずOffにする
 		}
 	}
