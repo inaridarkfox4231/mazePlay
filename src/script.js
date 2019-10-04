@@ -179,14 +179,22 @@ class mover{
 		this.myMap = undefined;
 		this.speed = speed;
 		this.alive = true; // 排除用（ショットとか）
+		this.g = 0; // グリッドサイズも結構使うし
+	  this.x = 0; // 中心座標x(gは掛けない)
+		this.y = 0; // 中心座標y(gは掛けない)
 	}
 	setPosData(x, y, mapData){
 		this.from = {x:x, y:y};
 		this.diff = 0;
 		this.myMap = mapData;
+		this.g = this.myMap.grid;
+		this.x = x + 0.5;
+		this.y = y + 0.5;
 	}
   update(){
     // なんか更新
+		this.x = this.from.x + this.diff * dx[this.dir] + 0.5;
+		this.y = this.from.y + this.diff * dy[this.dir] + 0.5;
 		return;
   }
 	move(){
@@ -235,6 +243,8 @@ class player extends mover{
 		this.shotSign = false;
   }
 	update(){
+		this.x = this.from.x + this.diff * dx[this.dir] + 0.5;
+		this.y = this.from.y + this.diff * dy[this.dir] + 0.5;
 		if(keyFlag & 2){ this.shotSign = true; } // Zキーでショット発射. 種類はidで判断。
 	}
   move(){
@@ -346,6 +356,8 @@ class shot extends mover{
 		this.myMap = _mover.myMap;
 		this.diff = _mover.diff;
 		this.dir = _mover.dir;
+		this.x = this.from.x + this.diff * dx[this.dir] * 0.5;
+		this.y = this.from.y + this.diff * dy[this.dir] * 0.5;
 	}
 	move(){
 		if(!this.alive){ return; }
@@ -363,6 +375,7 @@ class shot extends mover{
 // 前に行けるときは直進するが前に行けないと左右の行けるほうに曲がる。
 // 曲がれる回数が決まっててそのたびに減っていく。
 // 0のときに前に行けないと消える。
+// 衝突しても消える（まだ実装してない）updateで中心座標を計算する必要がある。
 // いつものようにmove:動き方、setting:マス目ピッタリの時の方向指定、render:描画表現
 class straightShot extends shot{
 	constructor(speed, r, g, b, turnCount){
@@ -372,11 +385,14 @@ class straightShot extends shot{
 		this.rotationCount = 0;
 	}
 	update(){
+		this.x = this.from.x + this.diff * dx[this.dir] * 0.5;
+		this.y = this.from.y + this.diff * dy[this.dir] * 0.5;
 	  this.rotationCount += 0.1;
 		if(this.turnCount === 0){
 			this.alive = false; // なんかエフェクト出す？ejectで排除するときどっかに放り込んでおいて、
 			// メソッドでエフェクトを出させた後で配列を空にするとか。どっかってmasterのtrashとかそういう。
 		}
+		// 敵に当たった時も消えるように書かないとね
 	}
 	setting(id){
 		// 真正面に行ける：直進。行けない：左右に行ければどっちかに曲がりカウント-1. 行き止まり：そのまま消滅。
@@ -566,6 +582,7 @@ class master{
     this.effectArray.forEach((ef) => {ef.update();})
 		this.stage.update();
 		this.player.update();
+		this.enemyArray.forEach((e) => {e.update();})
 	}
 	signCheck(){
 		if(this.stage.generateSign){
