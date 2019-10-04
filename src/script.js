@@ -25,6 +25,7 @@ function draw(){
 	entity.signCheck();
 	entity.move();
 	entity.render();
+	entity.collisionCheck();
 	entity.eject();
 	entity.check();
 }
@@ -290,11 +291,12 @@ class player extends mover{
 	signOff(){ this.shotSign = false; flagReset(); } // メソッドでオフにする
 	render(){
 		if(!this.alive){ return; }
-		let g = this.myMap.grid;
-		let cellX = this.from.x + this.diff * dx[this.dir];
-		let cellY = this.from.y + this.diff * dy[this.dir];
+		//let g = this.myMap.grid;
+		//let cellX = this.from.x + this.diff * dx[this.dir];
+		//let cellY = this.from.y + this.diff * dy[this.dir];
 		fill(255, 201, 14);
-		rect(cellX * g, cellY * g, g, g);
+		//rect(cellX * g, cellY * g, g, g);
+		rect((this.x - 0.5) * this.g, (this.y - 0.5) * this.g, this.g, this.g);
 	}
 }
 
@@ -338,17 +340,22 @@ class wanderer extends mover{
   }
   render(){
 		if(!this.alive){ return; }
-		let g = this.myMap.grid;
-		let cellX = this.from.x + this.diff * dx[this.dir];
-		let cellY = this.from.y + this.diff * dy[this.dir];
+		//let g = this.myMap.grid;
+		//let cellX = this.from.x + this.diff * dx[this.dir];
+		//let cellY = this.from.y + this.diff * dy[this.dir];
 		fill(this.color);
-		rect(cellX * g, cellY * g, g, g);
+		//rect(cellX * g, cellY * g, g, g);
+		rect((this.x - 0.5) * this.g, (this.y - 0.5) * this.g, this.g, this.g);
+	}
+	hit(_shot){
+		this.alive = false;
 	}
 }
 
 class shot extends mover{
-  constructor(speed){
+  constructor(speed, id){
 		super(speed);
+		this.id = id;
 	}
 	setData(_mover){
 		this.from.x = _mover.from.x;
@@ -356,8 +363,9 @@ class shot extends mover{
 		this.myMap = _mover.myMap;
 		this.diff = _mover.diff;
 		this.dir = _mover.dir;
-		this.x = this.from.x + this.diff * dx[this.dir] * 0.5;
-		this.y = this.from.y + this.diff * dy[this.dir] * 0.5;
+		this.x = this.from.x + this.diff * dx[this.dir] + 0.5;
+		this.y = this.from.y + this.diff * dy[this.dir] + 0.5;
+		this.g = this.myMap.grid;
 	}
 	move(){
 		if(!this.alive){ return; }
@@ -378,15 +386,15 @@ class shot extends mover{
 // 衝突しても消える（まだ実装してない）updateで中心座標を計算する必要がある。
 // いつものようにmove:動き方、setting:マス目ピッタリの時の方向指定、render:描画表現
 class straightShot extends shot{
-	constructor(speed, r, g, b, turnCount){
-		super(speed);
+	constructor(speed, id, r, g, b, turnCount){
+		super(speed, id);
 		this.color = color(r, g, b);
 		this.turnCount = turnCount;
 		this.rotationCount = 0;
 	}
 	update(){
-		this.x = this.from.x + this.diff * dx[this.dir] * 0.5;
-		this.y = this.from.y + this.diff * dy[this.dir] * 0.5;
+		this.x = this.from.x + this.diff * dx[this.dir] + 0.5;
+		this.y = this.from.y + this.diff * dy[this.dir] + 0.5;
 	  this.rotationCount += 0.1;
 		if(this.turnCount === 0){
 			this.alive = false; // なんかエフェクト出す？ejectで排除するときどっかに放り込んでおいて、
@@ -408,14 +416,18 @@ class straightShot extends shot{
 	}
 	render(){
 		if(!this.alive){ return; }
-		let g = this.myMap.grid;
+		//let g = this.myMap.grid;
     push();
-		translate((this.from.x + this.diff * dx[this.dir] + 0.5) * g, (this.from.y + this.diff * dy[this.dir] + 0.5) * g);
+		//translate((this.from.x + this.diff * dx[this.dir] + 0.5) * g, (this.from.y + this.diff * dy[this.dir] + 0.5) * g);
+		translate(this.x * this.g, this.y * this.g);
 		rotate(this.rotationCount)
 		fill(this.color);
-		rect(-g * 0.4, -g * 0.4, g * 0.8, g * 0.8);
+		rect(-this.g * 0.4, -this.g * 0.4, this.g * 0.8, this.g * 0.8);
 		//rect((this.from.x + this.diff * dx[this.dir]) * g, (this.from.y + this.diff * dy[this.dir]) * g, g, g);
 		pop();
+	}
+	hit(_enemy){
+		this.alive = false;
 	}
 }
 
@@ -549,7 +561,7 @@ class master{
 		let s;
 		switch(id){
 			case 0:
-			  s = new straightShot(0.06, 0, 162, 232, 2);
+			  s = new straightShot(0.06, 0, 0, 162, 232, 3);
 				break;
 		}
 		s.setData(this.player);
@@ -608,16 +620,37 @@ class master{
 		this.effectArray.forEach((ef) => {ef.render();})
 		this.message.render();
 	}
+	collisionCheck(){
+		for(let i = 0; i < this.shotArray.length; i++){
+			let s = this.shotArray[i];
+			if(!s.alive){ continue; }
+			for(let k = 0; k < this.enemyArray.length; k++){
+				let e = this.enemyArray[k];
+				if(!e.alive){ continue; }
+				if(collide(s, e)){
+					s.hit(e);
+					e.hit(s);
+				}
+			}
+		}
+	}
 	eject(){
 		// いなくなったenemy、終了したeffectの排除（こういうのは役割を分離したほうがいい）
 		for(let i = 0; i < this.shotArray.length; i++){
-			if(!this.shotArray[i].alive){ this.shotArray.splice(i, 1); }
+			if(!this.shotArray[i].alive){
+				this.shotArray.splice(i, 1);
+			}
 		}
 	  for(let i = 0; i < this.effectArray.length; i++){
-			if(!this.effectArray[i].alive){ this.effectArray.splice(i, 1); }
+			if(!this.effectArray[i].alive){
+				this.effectArray.splice(i, 1);
+			}
 		}
 		for(let i = 0; i < this.enemyArray.length; i++){
-			if(!this.enemyArray[i].alive){ this.enemyArray.splice(i, 1); }
+			if(!this.enemyArray[i].alive){
+				this.enemyArray.splice(i, 1);
+				this.stage.decreaseEnemyVolume();
+			}
 		}
 	}
   gameOverCheck(){
@@ -652,6 +685,11 @@ class master{
 			}
 		}
 	}
+}
+
+function collide(_mover1, _mover2){
+	if(abs(_mover1.x - _mover2.x) < 1 && abs(_mover1.y - _mover2.y) < 1){ return true; }
+	return false;
 }
 
 class stage{
@@ -711,6 +749,7 @@ class stage{
 		this.currentEnemyVolume--;
 		if(this.full){ this.enemySetCounter = 0; } // fullで1匹でも倒れたらカウンター発動
 		this.full = false;
+		//console.log(this.full);
 		if(this.currentEnemyVolume === 0){ this.empty = true; }
 	}
 	getNextEnemyId(){
