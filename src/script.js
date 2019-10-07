@@ -13,7 +13,7 @@ const dx = [1, 0, -1, 0, 1]; // 4番目を用意しておくのが地味に大�
 const dy = [0, 1, 0, -1, 0];
 
 function setup(){
-	createCanvas(640, 480);
+	createCanvas(320, 320);
 	noStroke();
 	entity = new master(1, 1);
 	keyFlag = 0;
@@ -46,6 +46,8 @@ class stageMap{
 		this.start = {x:0, y:0}; // 迷路を作るときの始点
 		this.goal = {x:0, y:0};  // cellValueが最大となる点で、ゴールに設定する
 		this.grid = grid;
+		this.mapWidth = 0;  // オフセット用
+		this.mapHeight = 0; // オフセット用
 		this.board = getInitialMatrix(w, h, -1);
 		this.cellValue = getInitialMatrix(w, h, -1);
     // 外周を0で埋める
@@ -55,6 +57,8 @@ class stageMap{
 	reconstruction(x, y, param){
 		// 再構築～
 		this.reset(param.w, param.h, param.g);
+		this.mapWidth = param.w * param.g;
+		this.mapHeight = param.h * param.g;
 		this.createMaze(x, y);
 		//console.log(x + " " + y);
 		this.completion();
@@ -139,22 +143,33 @@ class stageMap{
     }
     this.cellValue[x][y] = value + 1; // たとえばすべて-1なら0が設定される。
   }
-	render(){
+	render(offSetX, offSetY){
     // 0か
 		let g = this.grid;
 		for(let x = 0; x < this.w; x++){
 			for(let y = 0; y < this.h; y++){
+				// (x * g, y * g), (x * g + g, y * g + g)を角とする正方形の4つの角のどれかが
+				// 0～width, 0～heightに入ってれば描画する。
+				let f1 = this.inCheck(x * g - offSetX, y * g - offSetY);
+				let f2 = this.inCheck(x * g + g - offSetX, y * g - offSetY);
+				let f3 = this.inCheck(x * g - offSetX, y * g + g - offSetY);
+				let f4 = this.inCheck(x * g + g - offSetX, y * g + g - offSetY);
+				if(!f1 && !f2 && !f3 && !f4){ continue; }
 				let v = this.cellValue[x][y];
         if(this.checkFlag(x, y, -1)){ fill(200, 200, 255); }
 				else if(this.checkFlag(x, y, 0)){ fill(0); }
 				else{ fill(255, 255 - 2 * v, 255 - 2 * v); }
-				rect(x * g, y * g, g, g);
+				rect(x * g - offSetX, y * g - offSetY, g, g);
 			}
 		}
 		fill(114);
-		rect(this.start.x * g, this.start.y * g, g, g);
+		rect(this.start.x * g - offSetX, this.start.y * g - offSetY, g, g);
 		fill(215, 186, 53);
-		rect(this.goal.x * g, this.goal.y * g, g, g);
+		rect(this.goal.x * g - offSetX, this.goal.y * g - offSetY, g, g);
+	}
+	inCheck(a, b){
+	  if(a < 0 || a > width || b < 0 || b > height){ return false; }
+		return true;
 	}
 }
 
@@ -230,7 +245,7 @@ class mover{
     // 敵の場合とか、getIdはそのままdirでしょ・・場合によっては違うかもだけど。
     return -1;
 	}
-	render(){
+	render(offSetX, offSetY){
     return;
 	}
 }
@@ -289,14 +304,10 @@ class player extends mover{
   }
 	getShotTypeId(){ return this.shotTypeId; }
 	signOff(){ this.shotSign = false; flagReset(); } // メソッドでオフにする
-	render(){
+	render(offSetX, offSetY){
 		if(!this.alive){ return; }
-		//let g = this.myMap.grid;
-		//let cellX = this.from.x + this.diff * dx[this.dir];
-		//let cellY = this.from.y + this.diff * dy[this.dir];
 		fill(255, 201, 14);
-		//rect(cellX * g, cellY * g, g, g);
-		rect((this.x - 0.5) * this.g, (this.y - 0.5) * this.g, this.g, this.g);
+		rect((this.x - 0.5) * this.g - offSetX, (this.y - 0.5) * this.g - offSetY, this.g, this.g);
 	}
 }
 
@@ -338,14 +349,10 @@ class wanderer extends mover{
     }
     this.dir = newDir;
   }
-  render(){
+  render(offSetX, offSetY){
 		if(!this.alive){ return; }
-		//let g = this.myMap.grid;
-		//let cellX = this.from.x + this.diff * dx[this.dir];
-		//let cellY = this.from.y + this.diff * dy[this.dir];
 		fill(this.color);
-		//rect(cellX * g, cellY * g, g, g);
-		rect((this.x - 0.5) * this.g, (this.y - 0.5) * this.g, this.g, this.g);
+		rect((this.x - 0.5) * this.g - offSetX, (this.y - 0.5) * this.g - offSetY, this.g, this.g);
 	}
 	hit(_shot){
 		this.alive = false;
@@ -414,16 +421,13 @@ class straightShot extends shot{
 		else{ this.dir = (this.dir + 5) % 4; }
 		return;
 	}
-	render(){
+	render(offSetX, offSetY){
 		if(!this.alive){ return; }
-		//let g = this.myMap.grid;
     push();
-		//translate((this.from.x + this.diff * dx[this.dir] + 0.5) * g, (this.from.y + this.diff * dy[this.dir] + 0.5) * g);
-		translate(this.x * this.g, this.y * this.g);
+		translate(this.x * this.g - offSetX, this.y * this.g - offSetY);
 		rotate(this.rotationCount)
 		fill(this.color);
 		rect(-this.g * 0.4, -this.g * 0.4, this.g * 0.8, this.g * 0.8);
-		//rect((this.from.x + this.diff * dx[this.dir]) * g, (this.from.y + this.diff * dy[this.dir]) * g, g, g);
 		pop();
 	}
 	hit(_enemy){
@@ -439,24 +443,6 @@ class effect{
 	update(){
 	  this.life--;
 		if(this.life === 0){ this.alive = false; }
-	}
-}
-
-class stopMessageEffect extends effect{
-	constructor(life, typeStr, alpha, messageArray){
-		super(life);
-		this.typeStr = typeStr;
-		this.alpha = alpha;
-		this.messageArray = messageArray;
-	}
-	render(){
-		fill(0, 0, 0, this.alpha);
-		rect(0, 0, width, height);
-		this.messageArray.forEach((mes) => {
-			fill(255);
-			textSize(mes.size);
-			text(mes.str, mes.x, mes.y);
-		})
 	}
 }
 
@@ -500,10 +486,8 @@ class message{
 // 敵はプレイヤーの位置と離れたところにしか出したくない。
 class master{
 	constructor(x, y){
-		this.stageArray = [new stage(1, 1, 120, [0], [{id:0, ratio:100}], {w:10, h:10, g:32}),
-		                   new stage(2, 2, 120, [1], [{id:0, ratio:50}, {id:1, ratio:50}], {w:10, h:10, g:32}),
-                       new stage(3, 3, 120, [2], [{id:0, ratio:30}, {id:1, ratio:30}, {id:2, ratio:40}], {w:10, h:10, g:32})
-											 ];
+		this.stageArray = [];
+		this.stageInput();
 		this.stageIndex = 0;
 		this.stage = undefined;
 		this.w = 1;
@@ -515,6 +499,12 @@ class master{
 		this.message = new message(); // スタートとかクリアとかの画面暗くなるやつ。effectとは別。
 		this.player = new player(0.08);
 		this.setStage(x, y);
+	}
+	stageInput(){
+		let s1 = new stage(1, 1, 120, [0], [{id:0, ratio:100}], {w:15, h:15, g:32});
+		let s2 = new stage(2, 2, 120, [1], [{id:0, ratio:50}, {id:1, ratio:50}], {w:15, h:15, g:32});
+		let s3 = new stage(3, 3, 120, [2], [{id:0, ratio:30}, {id:1, ratio:30}, {id:2, ratio:40}], {w:15, h:15, g:32});
+		this.stageArray.push(...[s1, s2, s3]);
 	}
 	setStage(x, y){
 		this.stage = this.stageArray[this.stageIndex];
@@ -612,12 +602,25 @@ class master{
 		this.shotArray.forEach((s) => {s.move();})
 		this.enemyArray.forEach((e) => {e.move();})
 	}
+	calcOffSet(g){
+	  let ox, oy;
+		if(this.player.x * g < width / 2){ ox = 0; }
+		else if(this.player.x * g > this.stageMap.mapWidth - (width / 2)){ ox = this.stageMap.mapWidth - width; }
+		else{ ox = this.player.x * g - width / 2; }
+		if(this.player.y * g < height / 2){ oy = 0; }
+		else if(this.player.y * g > this.stageMap.mapHeight - (height / 2)){ oy = this.stageMap.mapHeight - height; }
+		else{ oy = this.player.y * g - height / 2; }
+		return {x:ox, y:oy};
+	}
 	render(){
-		this.stageMap.render();
-		this.player.render();
-		this.enemyArray.forEach((e) => {e.render();})
-		this.shotArray.forEach((s) => {s.render();})
-		this.effectArray.forEach((ef) => {ef.render();})
+		// ここでオフセットを計算してstageMapに渡す。
+		let g = this.stageMap.grid;
+		let offSet = this.calcOffSet(g);
+		this.stageMap.render(offSet.x, offSet.y);
+		this.player.render(offSet.x, offSet.y);
+		this.enemyArray.forEach((e) => {e.render(offSet.x, offSet.y);})
+		this.shotArray.forEach((s) => {s.render(offSet.x, offSet.y);})
+		this.effectArray.forEach((ef) => {ef.render(offSet.x, offSet.y);})
 		this.message.render();
 	}
 	collisionCheck(){
